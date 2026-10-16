@@ -1,0 +1,72 @@
+# Inventory Tracking System
+
+A small business needs to know what stock it has and how that has changed over time. Deliverable: a complete, reliable, tested app that runs locally with Docker, includes README instructions, and ships seed data so reviewers can test without creating records manually.
+
+**Stack:** Java 25, Spring Boot 4.1.1 (Maven), PostgreSQL, React (Vite + TypeScript). Package: `dev.hpsoftware.torch`.
+**Constraints:** 3-day delivery; no unnecessary infrastructure (no queues, caches, microservices, state libs); no authentication.
+
+## Core design decision
+**Append-only stock-movement ledger.** Every stock change is a `StockMovement` row (signed delta, type, balance_after, timestamp); history is never edited. `product.quantity_on_hand` is a denormalised current balance, updated in the same transaction under a pessimistic row lock (`SELECT … FOR UPDATE`) so concurrent movements can't oversell or lose updates. Negative stock is rejected (409).
+
+**Invariant:** `quantity_on_hand` == sum of all of that product's `quantity_delta`s, always >= 0.
+
+## Data model
+- `product`: id, sku (unique), name, description, unit, reorder_level, quantity_on_hand (CHECK >= 0, **always starts at 0**; create-product cannot set stock — initial inventory is a RECEIPT movement), active, created_at, version
+- `stock_movement`: id, product_id FK (indexed with created_at), type (`RECEIPT`, `ISSUE`, `ADJUSTMENT`), quantity_delta (non-zero, signed), balance_after, note, created_at
+- Flyway holds **schema versions only** (`src/main/resources/db/migration`, `V1__schema.sql`, then `V2__...`, etc.). No data migrations.
+- Hibernate `ddl-auto: validate`; `open-in-view: false`; DTO records only, never expose entities.
+
+## Movement rules
+- RECEIPT: positive quantity. ISSUE: positive requested quantity, service converts to a negative delta. ADJUSTMENT: nonzero signed delta (no target-count adjustments in v1).
+- Rejected: zero quantity, wrong sign, result below zero (409 insufficient stock).
+
+## Seed data
+`SeedDataLoader` (`ApplicationRunner`, `@Profile("seed")`), not Flyway. Uses the **same inventory service** as normal operations (create product, then record movements). Idempotent (skips if products exist). ≈12 products with ~60 days of back-dated movements; a few below reorder level, one out of stock. Compose sets `SPRING_PROFILES_ACTIVE=seed`.
+
+## REST API
+- `GET/POST /api/products`, `GET/PUT /api/products/{id}`, `DELETE` = soft-deactivate. `?q=` search, `?lowStock=true`.
+- `POST /api/products/{id}/movements` `{type, quantity, note}`
+- `GET /api/products/{id}/movements?page=&size=` (newest first)
+- Optional: `GET /api/movements?from=&to=&type=`, `GET /api/products/{id}/balance-history?days=`; P1: `GET /api/summary`
+- One `@RestControllerAdvice` → RFC 7807 `ProblemDetail` (400 validation, 404, 409 duplicate SKU / insufficient stock). Inject a `Clock` bean for testable timestamps.
+- OpenAPI docs via springdoc (`/swagger-ui.html`).
+
+## Dependencies (exactly)
+webmvc, data-jpa, validation, flyway (+ `flyway-database-postgresql`), postgresql, actuator (health), springdoc-openapi (Boot 4-compatible 3.x — verify), tests: spring-boot-starter-test (+ webmvc-test). Verify Boot 4 starter names and versions resolve before writing app code. No Testcontainers initially.
+
+## Frontend (`frontend/`)
+Vite + React + TypeScript, plain `fetch` wrapper, React Router. Build only after the core API works.
+- Products list (search, low-stock badge, create form)
+- Product detail: current stock, receive/issue/adjust form showing server errors, paged movement history
+- Shared loading/error/empty handling via a small `useApi` hook
+- Optional: dashboard summary, balance-over-time SVG chart, global activity feed
+
+## Docker / delivery
+- `docker-compose.yml`: `db` (postgres:17-alpine, healthcheck, volume), `backend` (multi-stage maven temurin-25 → temurin-25 jre), `frontend` (node build → nginx, proxies `/api` to backend; no CORS needed). Env-driven DB config (`DB_URL`, `DB_USER`, `DB_PASSWORD`).
+- UI http://localhost:3000, API http://localhost:8080.
+- README: prerequisites, run, reset (`docker compose down -v`), run tests, API overview, design decisions/trade-offs (ledger, locking, soft delete), out-of-scope list, how it would evolve.
+
+## Testing
+- Unit: movement service rules with Mockito/`Clock`.
+- Integration (`@SpringBootTest`, compose Postgres, separate `torch_test` DB, real Flyway): API happy paths and error mapping via MockMvc; seed sanity (ledger sum == quantity_on_hand); **concurrency test** — N parallel issues against stock of N-k, exactly k fail, balance never negative.
+- Frontend: Vitest + React Testing Library (movement form errors, product list search/low-stock badge).
+
+## Priorities
+**P0 (in order):**
+0. Verify Boot 4.1.1 / Java 25 / springdoc / dependency versions build.
+1. Vertical slice: V1 schema, product creation (stock 0), movement service, transactional consistency, minimal REST + errors, unit + integration tests.
+2. Concurrency strategy (pessimistic lock) + concurrency integration test, once the basic movement workflow works.
+3. Idempotent seed loader.
+4. Frontend + its tests.
+5. Dockerfiles, compose, README.
+6. **Acceptance:** `docker compose up --build` starts with seeded data; a reviewer can create products, receive stock, issue stock, get an invalid issue rejected, and inspect movement history.
+
+**P1:** dashboard summary, low-stock filter.
+**Optional (only after all P0):** balance chart, global activity feed, GitHub Actions, Testcontainers.
+**Not doing:** authentication.
+
+## Working method
+Implement one small, testable step at a time; run the relevant tests and report actual results before proceeding. No optional feature while any P0 is incomplete.
+
+## Assumptions
+Single warehouse/location, integer quantities, soft delete only.

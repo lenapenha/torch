@@ -1,6 +1,7 @@
 package dev.hpsoftware.torch.controller;
 
 import dev.hpsoftware.torch.dto.ProductResponse;
+import dev.hpsoftware.torch.exception.DuplicateSkuException;
 import dev.hpsoftware.torch.service.ProductService;
 
 import org.junit.jupiter.api.Test;
@@ -74,6 +75,51 @@ public class ProductControllerTest {
                 .andExpect(jsonPath("$.errors.reorderLevel").exists());
 
         verifyNoInteractions(productService);
+    }
+
+    @Test
+    public void shouldReturnConflictWhenSkuAlreadyExists() throws Exception {
+        when(productService.createProduct(any()))
+                .thenThrow(new DuplicateSkuException("SKU-3"));
+
+        String body = """
+                {
+                "sku": "SKU-3",
+                "name": "Widget",
+                "description": "A widget",
+                "unit": "pcs",
+                "reorderLevel": 5
+                }
+                """;
+        mockMvc.perform(post("/api/products")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Duplicate SKU"))
+                .andExpect(jsonPath("$.detail").value("Product with sku SKU-3 already exists"));
+    }
+
+    @Test
+    public void shouldReturnInternalServerErrorWhenUnexpectedExceptionThrown() throws Exception {
+        when(productService.createProduct(any()))
+                .thenThrow(new RuntimeException("boom"));
+
+        String body = """
+                {
+                "sku": "SKU-3",
+                "name": "Widget",
+                "description": "A widget",
+                "unit": "pcs",
+                "reorderLevel": 5
+                }
+                """;
+
+        mockMvc.perform(post("/api/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isInternalServerError())
+            .andExpect(jsonPath("$.title").value("Internal Server Error"))
+            .andExpect(jsonPath("$.detail").value("An unexpected error occurred"));
     }
 
 }

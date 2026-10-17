@@ -1,7 +1,6 @@
-package dev.hpsoftware.torch;
+package dev.hpsoftware.torch.repository;
 
 import dev.hpsoftware.torch.model.Product;
-import dev.hpsoftware.torch.repository.ProductRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;

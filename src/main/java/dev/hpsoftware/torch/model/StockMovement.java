@@ -34,13 +34,13 @@ public class StockMovement {
 
     protected StockMovement() {}
 
-    public StockMovement(Product product, MovementType type, int quantityDelta, int balanceAfter, String note) {
+    public StockMovement(Product product, MovementType type, int quantityDelta, int balanceAfter, String note, Instant createdAt) {
         this.product = product;
         this.type = type;
         this.quantityDelta = quantityDelta;
         this.balanceAfter = balanceAfter;
         this.note = note;
-        this.createdAt = Instant.now();
+        this.createdAt = createdAt;
     }
 
     public Long getId() {

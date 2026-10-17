@@ -24,11 +24,11 @@ A small business needs to know what stock it has and how that has changed over t
 `SeedDataLoader` (`ApplicationRunner`, `@Profile("seed")`), not Flyway. Uses the **same inventory service** as normal operations (create product, then record movements). Idempotent (skips if products exist). ≈12 products with ~60 days of back-dated movements; a few below reorder level, one out of stock. Compose sets `SPRING_PROFILES_ACTIVE=seed`.
 
 ## REST API
-- `GET/POST /api/products`, `GET/PUT /api/products/{id}`, `DELETE` = soft-deactivate. `?q=` search, `?lowStock=true`.
+- `GET/POST /api/products`, `GET/PUT /api/products/{id}`, `DELETE` = soft-deactivate. `?q=` search (name or SKU, partial), `?sku=` exact SKU lookup (list of 0 or 1, never 404), `?lowStock=true`.
 - `POST /api/products/{id}/movements` `{type, quantity, note}`
 - `GET /api/products/{id}/movements?page=&size=` (newest first)
 - Optional: `GET /api/movements?from=&to=&type=`, `GET /api/products/{id}/balance-history?days=`; P1: `GET /api/summary`
-- One `@RestControllerAdvice` → RFC 7807 `ProblemDetail` (400 validation, 404, 409 duplicate SKU / insufficient stock). Inject a `Clock` bean for testable timestamps.
+- One `GlobalExceptionHandler` (`@RestControllerAdvice`, package `exception`) turns every exception into an RFC 7807 `ProblemDetail` (400 validation, 404, 409 duplicate SKU / insufficient stock). Controllers and services never build error responses; each endpoint slice adds the handler(s) it needs. Validation (400) returns "Validation failed" plus a per-field `errors` map. Inject a `Clock` bean for testable timestamps.
 - OpenAPI docs via springdoc (`/swagger-ui.html`).
 
 ## Dependencies (exactly)
@@ -66,7 +66,22 @@ Vite + React + TypeScript, plain `fetch` wrapper, React Router. Build only after
 **Not doing:** authentication.
 
 ## Working method
-Implement one small, testable step at a time; run the relevant tests and report actual results before proceeding. No optional feature while any P0 is incomplete.
+Build top-down, one endpoint at a time: controller -> service -> repository -> exceptions, with tests, before the next endpoint. Implement one small, testable step at a time; run the relevant tests and report actual results before proceeding. No optional feature while any P0 is incomplete.
 
 ## Assumptions
 Single warehouse/location, integer quantities, soft delete only.
+
+## Verify the complete application
+The primary acceptance criterion is that `docker compose up --build` starts the application with usable sample data.
+
+A reviewer must be able to:
+1. View and search products.
+2. Create and update a product.
+3. Receive stock.
+4. Issue stock.
+5. Attempt an invalid issue and receive a clear error.
+6. Verify that rejected operations leave stock unchanged.
+7. Inspect movement history.
+8. Restart the application without losing persisted data.
+
+Run the relevant automated tests and verify the final application workflow.

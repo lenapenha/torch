@@ -31,9 +31,9 @@ public class Product {
     private int quantityOnHand;
 
     @Column(nullable = false)
-    private boolean active;
+    private boolean active = true;
 
-    @Column(name = "created_at", nullable = false, updatable = false) //TODO it should be auto-generated in database
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @Version
@@ -41,12 +41,13 @@ public class Product {
 
     protected Product() {}
 
-    public Product(String sku, String name, String description, String unit, int reorderLevel) {
+    public Product(String sku, String name, String description, String unit, int reorderLevel,  Instant createdAt) {
         this.sku = sku;
         this.name = name;
         this.description = description;
         this.unit = unit;
         this.reorderLevel = reorderLevel;
+        this.createdAt = createdAt;
     }
 
     public Long getId() {

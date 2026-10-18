@@ -7,7 +7,7 @@ Torch is a small-business inventory tracking application. It is designed to answ
 
 The core design is an append-only stock-movement ledger. Every inventory change is recorded, and the product's current balance is maintained alongside that history.
 
-> **Project status — 2026-10-18:** The Spring Boot backend for product and stock-movement APIs is implemented. The current README reports 76 passing tests covering controller behavior, service rules, repository queries, and end-to-end integration tests against PostgreSQL. The React frontend, automatic seed-data loading, full Docker Compose application, and the concurrency test are still in progress.
+> **Project status — 2026-10-18:** The Spring Boot backend for product and stock-movement APIs is implemented. The current README reports 72 passing tests: 55 unit tests (`./mvnw test`, no database needed) and 17 integration tests (`./mvnw verify`, needs PostgreSQL) that cover the create/receive/issue/history workflow, rejected issues, repository queries, and a concurrency test. The React frontend, automatic seed-data loading, and the full Docker Compose application are still in progress.
 
 ## Contents
 
@@ -130,12 +130,31 @@ Do not use these development defaults for a deployed environment.
 
 ### 3. Run the tests
 
-The test suite requires PostgreSQL for repository tests, application-context startup, and the integration tests. Tests run against a separate `torch_test` database (profile `test`, see `src/test/resources/application-test.yaml`), never against the dev `torch` database. Integration tests truncate their tables before and after each test, so they only ever touch `torch_test`.
+Tests are split into two groups:
+
+| Command | Runs | Needs PostgreSQL |
+|---|---|---|
+| `./mvnw test` | Unit and web-slice tests (`*Test`): controllers, services | No |
+| `./mvnw verify` | The above plus integration tests (`*IT`): repository queries, application startup, API workflow, concurrency | Yes |
+
+`./mvnw test` is the fast, database-free build intended for CI. The integration tests are heavier, so they are run manually:
 
 ```bash
 docker compose up -d db
-./mvnw test
+./mvnw verify
 ```
+
+To run only the integration tests: `./mvnw test-compile failsafe:integration-test failsafe:verify`.
+
+The same commands are available as `make` targets (see the `Makefile`):
+
+| Target | What it does |
+|---|---|
+| `make test/unit` | `./mvnw clean test` (no database) |
+| `make test/integration` | starts the database, then runs only the integration tests |
+| `make test/all` | starts the database, then `./mvnw clean verify` |
+
+Integration tests run against a separate `torch_test` database (profile `test`, see `src/test/resources/application-test.yaml`), never against the dev `torch` database. They truncate their tables before and after each test, so they only ever touch `torch_test`.
 
 `torch_test` is created automatically by `docker/db/init-test-db.sql` the first time the database volume is created. If your volume already existed before that script was added, either reset it (see below) or create the database once:
 
@@ -143,7 +162,7 @@ docker compose up -d db
 docker exec torch-db psql -U torch -d torch -c "CREATE DATABASE torch_test OWNER torch;"
 ```
 
-The current README status reports **76 passing tests**. Re-run the command and use its actual result as the source of truth for the current checkout.
+Current result: 55 unit tests (`./mvnw test`) and 17 integration tests (`./mvnw verify`), all passing. Re-run the commands and use their actual output as the source of truth for the current checkout.
 
 ### 4. Reset the local database
 
@@ -267,7 +286,7 @@ The movement service loads the product using a `SELECT ... FOR UPDATE`-style rep
 
 **Why:** concurrent movements for the same product are serialized, preventing competing stock issues from both using the same stale balance.
 
-**Trade-off:** concurrent writes to the same product wait for one another. This is a reasonable choice for a small, single-location inventory application. A dedicated concurrency integration test is still needed.
+**Trade-off:** concurrent writes to the same product wait for one another. This is a reasonable choice for a small, single-location inventory application. `ConcurrencyIT` verifies it: 10 parallel issues against a stock of 7 produce exactly 7 successes and 3 `409` rejections, with the balance ending at 0.
 
 ### 4. Soft deactivation instead of hard deletion
 
@@ -351,7 +370,7 @@ existing data (for example duplicate SKUs) and destroy the seed data used to try
 **How:**                                                                  
 `docker/db/init-test-db.sql` creates `torch_test` the first time the Postgres volume is created, so a fresh `docker compose up` provides it automatically.
 
-**Trade-off:** tests need a running Compose Postgres, and `torch_test` shares a server with the dev database, separated only by name. Testcontainers would give each run its own throwaway database, at the cost of extra dependencies and slower startup.
+**Trade-off:** tests need a running Compose Postgres, and `torch_test` shares a server with the dev database, separated only by name. Testcontainers would give each run its own throwaway database, at the cost of extra dependencies and slower startup. For the same reason, integration tests (`*IT`) are kept out of `./mvnw test` and run with `./mvnw verify`, so a CI that only runs `./mvnw test` needs no database.
 
 ## Intentionally excluded functionality
 
@@ -379,7 +398,6 @@ The following items were identified in the current backend and should be address
 - Optimistic-lock conflicts on product `PUT` should map to `409 Conflict`.
 - Product update requests should reject unknown properties such as `sku` rather than silently ignoring them.
 - `%` and `_` in the `q` search parameter act as SQL `LIKE` wildcards. Decide whether that behavior is acceptable or should be escaped.
-- A concurrency test is still needed.
 - Seed data and the ledger-sum invariant test are still needed.
 - The React frontend, full Compose setup, and clean-checkout end-to-end verification are still needed.
 
@@ -422,7 +440,7 @@ docker compose up --build
 If another week were available, I would prioritize the following:
 
 1. Finish and harden adjustment semantics, pagination validation, exception mapping, and optimistic-lock conflict handling.
-2. Add a reliable concurrency test and broaden the PostgreSQL integration tests (the create/receive/issue/history workflow and a rejected issue leaving stock unchanged are already covered).
+2. Broaden the PostgreSQL integration tests to every endpoint's error mapping (the create/receive/issue/history workflow, a rejected issue leaving stock unchanged, and a concurrency test are already covered).
 3. Implement and verify idempotent sample data with realistic movement history.
 4. Finish the React product list, product detail, stock-adjustment form, and movement history.
 5. Add the dashboard summary and a balance-over-time chart if the core workflow is stable.
@@ -482,6 +500,9 @@ Examples of implementation choices that differed from earlier suggestions:
 - Explicit repository methods such as `findLowStock()` and `searchLowStock(q)` were selected instead of JPA Specifications because the current filter set is small.
 - The implementation uses a separate movement ledger while keeping the current balance on the product, with the two updated transactionally.
 - Integration tests were split into one test per behavior (create product, receive, issue, current balance, history) with small setup helpers, instead of a single end-to-end flow test, so a failing test name identifies which step broke.
+- Integration tests (`*IT`, run by the failsafe plugin on `./mvnw verify`) are kept out of `./mvnw test`, so the default build and a CI pipeline stay fast and database-free. The two other database-dependent classes (`ProductRepositoryIT`, `TorchApplicationIT`) were renamed to follow the same convention.
+
+- Creation of a `Makefile` that centralizes the project commands (`make db`, `make down`, `make db/reset`, `make build`, `make run`, `make test/unit`, `make test/integration`, `make test/all`), so a reviewer does not need to remember Maven and Compose flags.
 
 
 ## Final acceptance checklist

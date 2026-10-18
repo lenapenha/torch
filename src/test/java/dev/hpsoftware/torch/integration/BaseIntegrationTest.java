@@ -18,7 +18,7 @@ public class BaseIntegrationTest {
     MockMvc mockMvc;
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
+    protected JdbcTemplate jdbcTemplate;
 
     // clean before (known starting state) and after (leave torch_test empty for other test classes)
     @BeforeEach

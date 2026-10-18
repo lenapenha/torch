@@ -1,6 +1,7 @@
-package dev.hpsoftware.torch.repository;
+package dev.hpsoftware.torch.integration.repository;
 
 import dev.hpsoftware.torch.model.Product;
+import dev.hpsoftware.torch.repository.ProductRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
-public class ProductRepositoryTest {
+public class ProductRepositoryIT {
 
     @Autowired
     ProductRepository productRepository;

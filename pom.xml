@@ -11,8 +11,8 @@
 	<groupId>dev.hpsoftware</groupId>
 	<artifactId>torch</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+	<name>torch</name>
+	<description>Inventory tracking system with an append-only stock-movement ledger</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -98,6 +98,19 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+			<!-- runs the *IT classes (need Postgres) on "verify"; "test" stays unit-only -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

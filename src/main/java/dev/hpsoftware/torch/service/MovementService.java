@@ -2,6 +2,7 @@ package dev.hpsoftware.torch.service;
 
 import dev.hpsoftware.torch.dto.CreateMovementRequest;
 import dev.hpsoftware.torch.dto.MovementResponse;
+import dev.hpsoftware.torch.dto.PageResponse;
 import dev.hpsoftware.torch.enums.MovementType;
 import dev.hpsoftware.torch.exception.InsufficientStockException;
 import dev.hpsoftware.torch.exception.ResourceNotFoundException;
@@ -10,6 +11,8 @@ import dev.hpsoftware.torch.model.StockMovement;
 import dev.hpsoftware.torch.repository.ProductRepository;
 import dev.hpsoftware.torch.repository.StockMovementRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -57,5 +60,21 @@ public class MovementService {
                 clock.instant()));
 
         return MovementResponse.from(movement);
+    }
+
+    public PageResponse<MovementResponse> listMovements(Long productId, int page, int size) {
+        if (!productRepository.existsById(productId)) {
+            throw new ResourceNotFoundException("Product with id " + productId + " not found");
+        }
+
+        Page<StockMovement> result = movementRepository
+                .findByProductIdOrderByCreatedAtDescIdDesc(productId, PageRequest.of(page, size));
+
+        return new PageResponse<>(
+                result.getContent().stream().map(MovementResponse::from).toList(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages());
     }
 }

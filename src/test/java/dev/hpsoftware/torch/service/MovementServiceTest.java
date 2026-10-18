@@ -2,13 +2,17 @@ package dev.hpsoftware.torch.service;
 
 import dev.hpsoftware.torch.dto.CreateMovementRequest;
 import dev.hpsoftware.torch.dto.MovementResponse;
+import dev.hpsoftware.torch.dto.PageResponse;
 import dev.hpsoftware.torch.enums.MovementType;
 import dev.hpsoftware.torch.exception.InsufficientStockException;
 import dev.hpsoftware.torch.exception.ResourceNotFoundException;
 import dev.hpsoftware.torch.model.Product;
+import dev.hpsoftware.torch.model.StockMovement;
 import dev.hpsoftware.torch.repository.ProductRepository;
 import dev.hpsoftware.torch.repository.StockMovementRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -16,12 +20,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -133,4 +139,46 @@ public class MovementServiceTest {
         verify(movementRepository, never()).save(any());
     }
 
+    @Test
+    void listMovementsMapsPageToResponseWithMetadata() {
+        Product product = newProduct();
+        StockMovement newer = new StockMovement(product, MovementType.ISSUE, -5, 20, null, NOW.plusSeconds(60));
+        StockMovement older = new StockMovement(product, MovementType.RECEIPT, 25, 25, "Initial stock", NOW);
+        when(productRepository.existsById(1L)).thenReturn(true);
+        when(movementRepository.findByProductIdOrderByCreatedAtDescIdDesc(1L, PageRequest.of(0, 2)))
+                .thenReturn(new PageImpl<>(List.of(newer, older), PageRequest.of(0, 2), 5));
+
+        PageResponse<MovementResponse> response = service().listMovements(1L, 0, 2);
+
+        assertThat(response.content()).extracting(MovementResponse::quantityDelta)
+                .containsExactly(-5, 25);
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(2);
+        assertThat(response.totalElements()).isEqualTo(5);
+        assertThat(response.totalPages()).isEqualTo(3);
+    }
+
+    @Test
+    void listMovementsPassesRequestedPageAndSizeToRepository() {
+        when(productRepository.existsById(1L)).thenReturn(true);
+        when(movementRepository.findByProductIdOrderByCreatedAtDescIdDesc(1L, PageRequest.of(2, 5)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(2, 5), 0));
+
+        PageResponse<MovementResponse> response = service().listMovements(1L, 2, 5);
+
+        assertThat(response.content()).isEmpty();
+        assertThat(response.page()).isEqualTo(2);
+        assertThat(response.size()).isEqualTo(5);
+    }
+
+    @Test
+    void listMovementsThrowsNotFoundWhenProductDoesNotExist() {
+        when(productRepository.existsById(99L)).thenReturn(false);
+
+        assertThatThrownBy(() -> service().listMovements(99L, 0, 20))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Product with id 99 not found");
+
+        verifyNoInteractions(movementRepository);
+    }
 }

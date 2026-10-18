@@ -109,4 +109,8 @@ public class Product {
     public void setActive(boolean active) {
         this.active = active;
     }
+
+    public void applyDelta(int delta) {
+        this.quantityOnHand += delta;
+    }
 }

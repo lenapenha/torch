@@ -16,6 +16,21 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  backend:
+    build: .
+    container_name: torch-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/torch
+      DB_USER: torch
+      DB_PASSWORD: torch
+      SPRING_PROFILES_ACTIVE: seed
+    ports:
+      - "8080:8080"
+#    healthcheck:
+#      test: [ "CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1" ]
 
 volumes:
   pgdata:

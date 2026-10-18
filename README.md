@@ -79,8 +79,7 @@ The current backend includes:
 The following are not yet complete in the current repository state:
 
 - React frontend.
-- Automatic demo seed data inside `docker compose up --build` (the loader exists; it is not wired into Compose yet).
-- Full `docker compose up --build` application delivery.
+- Full `docker compose up --build` application delivery: the `frontend` service is still missing.
 - Dashboard summary and historical balance chart.
 - Some input-validation and exception-handling hardening described in [Known gaps](#known-gaps).
 
@@ -414,7 +413,8 @@ The following items were identified in the current backend and should be address
 - Product update requests should reject unknown properties such as `sku` rather than silently ignoring them.
 - `%` and `_` in the `q` search parameter act as SQL `LIKE` wildcards. Decide whether that behavior is acceptable or should be escaped.
 - Seeded products have `created_at` set to the load time, while their first movement is dated about 60 days earlier (`createProduct` has no explicit-timestamp overload). Cosmetic, accepted for the demo data.
-- The React frontend, full Compose setup, and clean-checkout end-to-end verification are still needed.
+- Swagger UI shows the `filter` parameter of `GET /api/products` as required, so the endpoint cannot be called without filters from Swagger (curl works). Probably fixed by `@ParameterObject` on the controller parameter.
+- The React frontend, frontend Compose service, and clean-checkout end-to-end verification are still needed.
 
 ## Planned full-application setup
 
@@ -424,7 +424,7 @@ The intended final reviewer experience is:
 docker compose up --build
 ```
 
-This is a **target, not a verified capability of the current repository state**.
+This is a **target, not yet complete**: today `docker compose up --build` starts `db` and `backend` (API on `http://localhost:8080`, seeded with demo data); the `frontend` service is still to be added.
 
 The planned Compose setup will start:
 

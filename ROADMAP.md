@@ -46,8 +46,8 @@ Packages: `controller`, `dto`, `service`, `repository`, `model`, `enums`, `excep
     - [x] 15d real run via `make run/seed` against `torch`: 12 products, 294 movements, invalid issue on the out-of-stock product -> 409 and stock stays 0, restart skips seeding (294 before and after). *Done 2026-10-18.*
 
 ## P0.4 — Backend container
-- [ ] Backend Dockerfile (multi-stage, temurin-25)
-- [ ] `backend` service in `docker-compose.yml` (env-driven `DB_URL`/`DB_USER`/`DB_PASSWORD`, `SPRING_PROFILES_ACTIVE=seed`, waits for the `db` healthcheck) so the image can be run and verified before the frontend exists
+- [x] Backend Dockerfile (multi-stage: `maven:3-eclipse-temurin-25-alpine` -> `eclipse-temurin:25-jre-alpine`, non-root user, `.dockerignore`). *Done 2026-10-18: image builds, no JVM flags baked in (use `JAVA_TOOL_OPTIONS` if needed).*
+- [x] `backend` service in `docker-compose.yml` *(done 2026-10-18: `docker compose up --build` runs backend + seed against the compose DB; Helena confirmed it works; restart-persistence check passed: data survives `docker compose down`/`up`, seed skipped)* (env-driven `DB_URL`/`DB_USER`/`DB_PASSWORD`, `SPRING_PROFILES_ACTIVE=seed`, waits for the `db` healthcheck) so the image can be run and verified before the frontend exists
 
 ## P0.5 — Frontend
 - [ ] Vite + React + TypeScript scaffold, router, `fetch` wrapper
@@ -83,3 +83,4 @@ Essential-only rule (Helena, 2026-10-17): anything that doesn't fit in the remai
 - [ ] Reject unknown properties on `UpdateProductRequest` (e.g. a `sku` in the body) with 400.
 - [ ] Seeded products' `created_at` is the load time, not 60 days ago (needs an explicit-`Instant` overload of `createProduct`).
 - [ ] `lowStock` follow-ups: `%`/`_` escaping in `q`; Specifications if a fourth filter appears.
+- [ ] **Swagger UI: `GET /api/products` filters** — Swagger UI shows `filter` as a required query param, and sending it empty fails with "For 'filter': Required field is not provided", so the endpoint can't be called without filters (curl works). Likely cause: `ProductController.listProducts(ProductFilter filter)` binds a plain record and springdoc documents it as one object param. Fix to try: annotate with `@ParameterObject` (springdoc) so `q`, `sku`, `lowStock` show as separate optional params. Also review the other endpoints in Swagger UI (movements `page`/`size`, request bodies, error responses).

@@ -517,9 +517,8 @@ Examples of implementation choices that differed from earlier suggestions:
 - The implementation uses a separate movement ledger while keeping the current balance on the product, with the two updated transactionally.
 - Integration tests were split into one test per behavior (create product, receive, issue, current balance, history) with small setup helpers, instead of a single end-to-end flow test, so a failing test name identifies which step broke.
 - Integration tests (`*IT`, run by the failsafe plugin on `./mvnw verify`) are kept out of `./mvnw test`, so the default build and a CI pipeline stay fast and database-free. The two other database-dependent classes (`ProductRepositoryIT`, `TorchApplicationIT`) were renamed to follow the same convention.
-
 - Creation of a `Makefile` that centralizes the project commands (`make db`, `make down`, `make db/reset`, `make build`, `make run`, `make run/seed`, `make test/unit`, `make test/integration`, `make test/all`), so a reviewer does not need to remember Maven and Compose flags.
-
+- Frontend routing: Claude suggested installing `react-router-dom`. I asked whether `react-router` alone was enough, since an earlier project of mine used only the `react-router` v7 package (`Routes`, `Route`, `Navigate` imported from `"react-router"`, no `react-router-dom`). It is: in v7 `react-router` is the main package and `react-router-dom` is only a re-export kept for older code, so the project depends on `react-router` alone. A router package is still needed next to `react-dom` (which only renders components) because the product detail page needs a real URL (`/products/:id`) for back/forward navigation, refresh and bookmarking.
 
 ## Final acceptance checklist
 

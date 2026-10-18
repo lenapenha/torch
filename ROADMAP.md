@@ -50,11 +50,16 @@ Packages: `controller`, `dto`, `service`, `repository`, `model`, `enums`, `excep
 - [x] `backend` service in `docker-compose.yml` *(done 2026-10-18: `docker compose up --build` runs backend + seed against the compose DB; Helena confirmed it works; restart-persistence check passed: data survives `docker compose down`/`up`, seed skipped)* (env-driven `DB_URL`/`DB_USER`/`DB_PASSWORD`, `SPRING_PROFILES_ACTIVE=seed`, waits for the `db` healthcheck) so the image can be run and verified before the frontend exists
 
 ## P0.5 — Frontend
-- [ ] Vite + React + TypeScript scaffold, router, `fetch` wrapper
-- [ ] Products list (search, low-stock badge, create form)
-- [ ] Product detail (stock, receive/issue form with server errors, paged history)
-- [ ] `useApi` hook (loading/error/empty)
-- [ ] Vitest + React Testing Library: movement form shows server error; product list search/low-stock badge (one test each)
+*Decisions (2026-10-18): Tailwind + components-based structure (`api/`, `hooks/`, `components/`, `features/`, `pages/`); plain `fetch` wrapper, custom `useApi` hook, no state/data library; ADJUSTMENT left out of the movement form (backend gap, see Deferred); tests co-located (`X.test.tsx` beside `X.tsx`, Vitest + jsdom + RTL, setup in `src/test/setup.ts`); function first, one bounded styling pass at the end.*
+- [x] F1. Scaffold: Vite react-ts + Tailwind + React Router + dev proxy `/api` -> :8080. *Check:* seeded products fetched.
+- [ ] F2. `api/client.ts` (fetch wrapper -> `ApiError` with status, detail, field `errors`) + `api/types.ts`. *Test:* 409 ProblemDetail -> ApiError.
+- [ ] F3. `hooks/useApi.ts` (loading/error/data/reload, ignores stale responses) + Loading/ErrorMessage/EmptyState components. *Test:* loading/success/error.
+- [ ] F4. Products list: debounced `?q=` search, low-stock badge (`quantityOnHand <= reorderLevel`, 0 = out of stock). *Tests:* search calls API with `q`; badge shown.
+- [ ] F5. Create product form (no stock field; shows 409 duplicate SKU and field errors).
+- [ ] F6. Product detail + receive/issue form (server errors shown, stock/history reload on success). *Test:* mocked 409 shows the message.
+- [ ] F7. Paged movement history (newest first, Prev/Next).
+- [ ] F8. Edit product (PUT; SKU read-only).
+- [ ] F9. Styling pass with Tailwind (one commit, shared components).
 
 ## P0.5b — Remaining delivery
 - [ ] Frontend Dockerfile (node build → nginx, proxy `/api`)

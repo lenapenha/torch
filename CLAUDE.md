@@ -57,8 +57,8 @@ Vite + React + TypeScript, plain `fetch` wrapper, React Router. Build only after
 1. Vertical slice: V1 schema, product creation (stock 0), movement service, transactional consistency, minimal REST + errors, unit + integration tests.
 2. Concurrency strategy (pessimistic lock) + concurrency integration test, once the basic movement workflow works.
 3. Idempotent seed loader.
-4. Frontend + its tests.
-5. Dockerfiles, compose, README.
+4. Backend Dockerfile + `backend` service in compose (before the frontend, so the API can be run and verified in a container).
+5. Frontend + its tests, then frontend Dockerfile, full compose, README.
 6. **Acceptance:** `docker compose up --build` starts with seeded data; a reviewer can create products, receive stock, issue stock, get an invalid issue rejected, and inspect movement history.
 
 **P1:** dashboard summary, low-stock filter.

@@ -7,7 +7,7 @@ Torch is a small-business inventory tracking application. It is designed to answ
 
 The core design is an append-only stock-movement ledger. Every inventory change is recorded, and the product's current balance is maintained alongside that history.
 
-> **Project status — 2026-10-18:** The Spring Boot backend for product and stock-movement APIs is implemented. The current README reports 72 passing tests: 55 unit tests (`./mvnw test`, no database needed) and 17 integration tests (`./mvnw verify`, needs PostgreSQL) that cover the create/receive/issue/history workflow, rejected issues, repository queries, and a concurrency test. The React frontend, automatic seed-data loading, and the full Docker Compose application are still in progress.
+> **Project status — 2026-10-18:** The Spring Boot backend for product and stock-movement APIs is implemented. The current README reports 79 passing tests: 56 unit tests (`./mvnw test`, no database needed) and 23 integration tests (`./mvnw verify`, needs PostgreSQL) that cover the create/receive/issue/history workflow, rejected issues, repository queries, a concurrency test, and the seed data. The seed loader (profile `seed`) is implemented and tested; the React frontend and the full Docker Compose application are still in progress.
 
 ## Contents
 
@@ -72,13 +72,14 @@ The current backend includes:
 - Flyway-managed database schema.
 - DTO records rather than exposing JPA entities directly.
 - An injected `Clock` to make timestamp behavior testable.
+- An idempotent seed loader (profile `seed`) with 12 products and about 60 days of back-dated movements, created through the normal services.
 
 ### Current limitations
 
 The following are not yet complete in the current repository state:
 
 - React frontend.
-- Automatic demo seed data.
+- Automatic demo seed data inside `docker compose up --build` (the loader exists; it is not wired into Compose yet).
 - Full `docker compose up --build` application delivery.
 - Dashboard summary and historical balance chart.
 - Some input-validation and exception-handling hardening described in [Known gaps](#known-gaps).
@@ -111,6 +112,18 @@ The current Compose configuration should start PostgreSQL 17 with the local data
 ```
 
 Flyway creates the database schema at application startup.
+
+#### Optional: load the sample data
+
+The database starts empty. To start the API with sample data (12 products and about 60 days of stock movements), activate the `seed` profile:
+
+```bash
+make run/seed
+# or, without make:
+./mvnw spring-boot:run -Dspring-boot.run.profiles=seed
+```
+
+The loader only runs if there are no products yet, so restarting with the profile never duplicates data. To start again from scratch, reset the database first (see [Reset the local database](#4-reset-the-local-database)). Without the profile (`make run`), nothing is seeded. In the full Docker Compose setup the profile is set through `SPRING_PROFILES_ACTIVE=seed`.
 
 By default, the API is expected at:
 
@@ -150,6 +163,8 @@ The same commands are available as `make` targets (see the `Makefile`):
 
 | Target | What it does |
 |---|---|
+| `make run` | starts the database, then the API (no sample data) |
+| `make run/seed` | starts the database, then the API with the `seed` profile (sample data) |
 | `make test/unit` | `./mvnw clean test` (no database) |
 | `make test/integration` | starts the database, then runs only the integration tests |
 | `make test/all` | starts the database, then `./mvnw clean verify` |
@@ -162,7 +177,7 @@ Integration tests run against a separate `torch_test` database (profile `test`, 
 docker exec torch-db psql -U torch -d torch -c "CREATE DATABASE torch_test OWNER torch;"
 ```
 
-Current result: 55 unit tests (`./mvnw test`) and 17 integration tests (`./mvnw verify`), all passing. Re-run the commands and use their actual output as the source of truth for the current checkout.
+Current result: 56 unit tests (`./mvnw test`) and 23 integration tests (`./mvnw verify`), all passing. Re-run the commands and use their actual output as the source of truth for the current checkout.
 
 ### 4. Reset the local database
 
@@ -260,7 +275,7 @@ For each product, the intended invariant is:
 quantity_on_hand = SUM(stock_movement.quantity_delta)
 ```
 
-This invariant assumes that all products start at zero and every subsequent stock change is represented by a movement. The application updates the current balance and inserts its movement in the same transaction. A seed-data consistency test and end-to-end verification are planned.
+This invariant assumes that all products start at zero and every subsequent stock change is represented by a movement. The application updates the current balance and inserts its movement in the same transaction. `SeedDataLoaderIT` checks this invariant for every seeded product; end-to-end verification through Docker Compose is still planned.
 
 ## Technical decisions and trade-offs
 
@@ -310,11 +325,11 @@ A new product starts with `quantity_on_hand = 0`. Initial inventory is added thr
 
 ### 7. Flyway for schema changes; application code for seed data
 
-Flyway migrations create and evolve the schema. Demo data is planned for an idempotent `ApplicationRunner` activated by a `seed` profile, using the normal movement service.
+Flyway migrations create and evolve the schema. Demo data is loaded by an idempotent `ApplicationRunner` (`SeedDataLoader`) activated by the `seed` profile, using the normal product and movement services.
 
 **Why:** schema history remains separate from environment-specific sample data, and seed movements exercise the same business rules as ordinary operations.
 
-**Trade-off:** seed loading still needs to be implemented and verified before reviewers can get sample data automatically.
+**Trade-off:** the loader uses an explicit-timestamp overload of the movement service to back-date history. The REST API cannot reach it, but it is a second entry point to keep in sync with the movement rules (the normal method delegates to it, so the rules live in one place).
 
 ### 8. DTOs and centralized error handling
 
@@ -398,7 +413,7 @@ The following items were identified in the current backend and should be address
 - Optimistic-lock conflicts on product `PUT` should map to `409 Conflict`.
 - Product update requests should reject unknown properties such as `sku` rather than silently ignoring them.
 - `%` and `_` in the `q` search parameter act as SQL `LIKE` wildcards. Decide whether that behavior is acceptable or should be escaped.
-- Seed data and the ledger-sum invariant test are still needed.
+- Seeded products have `created_at` set to the load time, while their first movement is dated about 60 days earlier (`createProduct` has no explicit-timestamp overload). Cosmetic, accepted for the demo data.
 - The React frontend, full Compose setup, and clean-checkout end-to-end verification are still needed.
 
 ## Planned full-application setup
@@ -449,6 +464,7 @@ If another week were available, I would prioritize the following:
 8. Consider idempotency keys for movement requests so retried client requests cannot accidentally apply the same movement twice.
 9. Revisit target-count stocktake adjustments and multi-location inventory only if supported by expanded requirements.
 10. Add authentication and per-user audit information if the application needs multiple users.
+11. Polish the OpenAPI docs. Swagger UI works out of the box (springdoc scans the controllers), but I would add an `OpenAPI` bean with a title, version and description, and `@Operation`/`@ApiResponse` annotations so the `404` and `409` responses, which come from the exception handler and not the controller signatures, also appear in the generated documentation.
 
 ## Time spent
 
@@ -502,7 +518,7 @@ Examples of implementation choices that differed from earlier suggestions:
 - Integration tests were split into one test per behavior (create product, receive, issue, current balance, history) with small setup helpers, instead of a single end-to-end flow test, so a failing test name identifies which step broke.
 - Integration tests (`*IT`, run by the failsafe plugin on `./mvnw verify`) are kept out of `./mvnw test`, so the default build and a CI pipeline stay fast and database-free. The two other database-dependent classes (`ProductRepositoryIT`, `TorchApplicationIT`) were renamed to follow the same convention.
 
-- Creation of a `Makefile` that centralizes the project commands (`make db`, `make down`, `make db/reset`, `make build`, `make run`, `make test/unit`, `make test/integration`, `make test/all`), so a reviewer does not need to remember Maven and Compose flags.
+- Creation of a `Makefile` that centralizes the project commands (`make db`, `make down`, `make db/reset`, `make build`, `make run`, `make run/seed`, `make test/unit`, `make test/integration`, `make test/all`), so a reviewer does not need to remember Maven and Compose flags.
 
 
 ## Final acceptance checklist

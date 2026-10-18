@@ -20,6 +20,11 @@ run:
 	make db
 	./mvnw spring-boot:run
 
+.PHONY: run/seed
+run/seed:
+	make db
+	./mvnw spring-boot:run -Dspring-boot.run.profiles=seed
+
 .PHONY: test/unit
 test/unit:
 	./mvnw clean test

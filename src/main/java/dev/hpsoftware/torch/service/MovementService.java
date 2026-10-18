@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Instant;
 
 @Service
 public class MovementService {
@@ -34,6 +35,13 @@ public class MovementService {
 
     @Transactional
     public MovementResponse recordMovement(Long productId, CreateMovementRequest request) {
+        return recordMovement(productId, request, clock.instant());
+    }
+
+    // stamps the movement with the given instant instead of the clock's;
+    // used by the seed loader to back-date history (the REST API can't back-date)
+    @Transactional
+    public MovementResponse recordMovement(Long productId, CreateMovementRequest request, Instant at) {
         Product product = productRepository.findByIdForUpdate(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product with id " + productId + " not found"));
 
@@ -45,8 +53,8 @@ public class MovementService {
         //before changing the balance, check whether it would go negative
         if (product.getQuantityOnHand() + delta < 0) {
             throw new InsufficientStockException(
-                "Insufficient stock: requested " + request.quantity()
-                        + ", available " + product.getQuantityOnHand());
+                    "Insufficient stock: requested " + request.quantity()
+                            + ", available " + product.getQuantityOnHand());
         }
 
         product.applyDelta(delta);
@@ -57,10 +65,11 @@ public class MovementService {
                 delta,
                 product.getQuantityOnHand(),
                 request.note(),
-                clock.instant()));
+                at));
 
         return MovementResponse.from(movement);
     }
+
 
     public PageResponse<MovementResponse> listMovements(Long productId, int page, int size) {
         if (!productRepository.existsById(productId)) {

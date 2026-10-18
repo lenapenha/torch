@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -65,6 +66,22 @@ public class MovementServiceTest {
         assertThat(response.balanceAfter()).isEqualTo(25);
         assertThat(response.note()).isEqualTo("Initial stock");
         assertThat(response.createdAt()).isEqualTo(NOW);
+        assertThat(product.getQuantityOnHand()).isEqualTo(25);
+    }
+
+    //Test for seed loader: record movement with explicit Instant. Uses that Instant instead of Clock
+    @Test
+    void recordMovementWithExplicitInstant() {
+        Product product = newProduct();
+        Instant past = NOW.minus(Duration.ofDays(60));
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(product));
+        when(movementRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        MovementResponse response = service().recordMovement(1L,
+                new CreateMovementRequest(MovementType.RECEIPT, 25, "Back-dated"), past);
+
+        assertThat(response.createdAt()).isEqualTo(past);
+        assertThat(response.balanceAfter()).isEqualTo(25);
         assertThat(product.getQuantityOnHand()).isEqualTo(25);
     }
 

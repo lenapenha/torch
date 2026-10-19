@@ -1,15 +1,22 @@
 import { Link, useParams } from 'react-router'
 import { useApi } from '../hooks/useApi'
-import { getProduct } from '../api/products'
+import { getProduct, listMovements } from '../api/products'
 import Loading from '../components/Loading'
 import ErrorMessage from '../components/ErrorMessage'
 import LowStockBadge from '../components/LowStockBadge'
 import MovementForm from '../features/MovementForm'
+import MovementHistory from '../features/MovementHistory'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
   const productId = Number(id)
-  const { data: product, error, loading, reload } = useApi(() => getProduct(productId), [productId])
+  const { data: product, error, loading, reload: reloadProduct } = useApi(() => getProduct(productId), [productId])
+  const { data: history, error: historyError, reload: reloadHistory } = useApi(() => listMovements(productId, 0, 20), [productId])
+
+  function handleMovementSaved() {
+    reloadProduct()
+    reloadHistory()
+  }
 
   return (
     <div>
@@ -31,7 +38,14 @@ export default function ProductDetailPage() {
         </div>
       )}
 
-      {product && <MovementForm productId={product.id} onSuccess={reload} />}
+      {product && <MovementForm productId={product.id} onSuccess={handleMovementSaved} />}
+      {product && (
+        <section className='mt-6'>
+          <h2 className='text-lg font-semibold'>Recent movements</h2>
+          {historyError && <ErrorMessage error={historyError}/>}
+          {history && <MovementHistory movements={history.content}/>}
+        </section>
+      )}
     </div>
   )
 }

@@ -7,7 +7,7 @@ Torch is a small-business inventory tracking application. It is designed to answ
 
 The core design is an append-only stock-movement ledger. Every inventory change is recorded, and the product's current balance is maintained alongside that history.
 
-> **Project status — 2026-10-18:** The Spring Boot backend for product and stock-movement APIs is implemented. The current README reports 79 passing tests: 56 unit tests (`./mvnw test`, no database needed) and 23 integration tests (`./mvnw verify`, needs PostgreSQL) that cover the create/receive/issue/history workflow, rejected issues, repository queries, a concurrency test, and the seed data. The seed loader (profile `seed`) is implemented and tested; the React frontend is in progress (scaffold, API client, `useApi` hook, product list with search and low-stock badges, product detail page and the receive/issue form are implemented; 9 Vitest tests pass with `npm test` in `frontend/`; movement history, create product and the frontend Docker service are still to do) and the full Docker Compose application is still to be finished.
+> **Project status — 2026-10-18:** The Spring Boot backend for product and stock-movement APIs is implemented. The current README reports 79 passing tests: 56 unit tests (`./mvnw test`, no database needed) and 23 integration tests (`./mvnw verify`, needs PostgreSQL) that cover the create/receive/issue/history workflow, rejected issues, repository queries, a concurrency test, and the seed data. The seed loader (profile `seed`) is implemented and tested; the React frontend is in progress (scaffold, API client, `useApi` hook, product list with search and low-stock badges, product detail page, the receive/issue form and the latest-20 movement history are implemented; 9 Vitest tests pass with `npm test` in `frontend/`; create product and the frontend Docker service are still to do) and the full Docker Compose application is still to be finished.
 
 ## Contents
 
@@ -80,7 +80,7 @@ The current backend includes:
 
 The following are not yet complete in the current repository state:
 
-- React frontend: the product list, product detail and receive/issue form are implemented; movement history and create product are still to do. Edit product in the UI is planned as a known gap.
+- React frontend: the product list, product detail, receive/issue form and latest-20 movement history are implemented; create product and the frontend Docker service are still to do. Edit product in the UI is planned as a known gap.
 - Full `docker compose up --build` application delivery: the `frontend` service is still missing.
 - Dashboard summary and historical balance chart.
 - Some input-validation and exception-handling hardening described in [Known gaps](#known-gaps).

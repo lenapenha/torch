@@ -14,6 +14,7 @@ export default function ProductListPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold">Products</h1>
+      <Link to="/products/new">New product</Link>
       <input 
         type="search"
         placeholder="Search by product name or SKU"

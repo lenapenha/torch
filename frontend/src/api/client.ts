@@ -27,7 +27,11 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     if (!res.ok) {
         // body is a ProblemDetail (RFC 7807), but a proxy error page may not be JSON
         const problem = await res.json().catch(() => null)
-        throw new ApiError(res.status, problem?.detail ?? res.statusText, problem?.errors)
+        
+        // a proxy answers 502/503/504 with a plain page when the backend is down or starting
+        const unavailable = [502, 503, 504].includes(res.status)
+        const fallback = unavailable ? 'The server is not available, please try again' : res.statusText
+        throw new ApiError(res.status, problem?.detail ?? fallback, problem?.errors)
     }
 
     if (res.status === 204) {

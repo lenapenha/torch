@@ -26,7 +26,10 @@ export default function ProductDetailPage() {
 
       {product && (
         <div className='mt-4 rounded bg-white p-4 shadow-sm'>
-          <h1 className="text-2xl font-bold">{product.name}</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold">{product.name}</h1>
+            <Link to={`/products/${product.id}/edit`}>Edit</Link>
+          </div>
           <p>SKU: {product.sku}</p>                                                                                                      
           <p>{product.description}</p>                                                                                                   
           <p>Unit: {product.unit}</p>                                                                                                    

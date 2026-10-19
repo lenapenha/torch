@@ -1,20 +1,22 @@
 import { useState } from "react"
 import type { SubmitEvent } from "react"
 import type { Product } from "../api/types"
-import { createProduct } from "../api/products"
+import { createProduct, updateProduct } from "../api/products"
 import type { ApiError } from "../api/client"
 import ErrorMessage from "../components/ErrorMessage"
 import Button from "../components/Button"
 import Field from "../components/Field"
 
-export default function ProductForm({onSuccess}: {
+export default function ProductForm({product, onSuccess}: {
+    product?: Product
     onSuccess: (product: Product) => void
 }) {
-    const [sku, setSku] = useState('')
-    const [name, setName] = useState('')
-    const [description, setDescription] = useState('')
-    const [unit, setUnit] = useState('')
-    const [reorderLevel, setReorderLevel] = useState('')
+    const isEdit = product !== undefined
+    const [sku, setSku] = useState(product?.sku ?? '')
+    const [name, setName] = useState(product?.name ?? '')
+    const [description, setDescription] = useState(product?.description ?? '')
+    const [unit, setUnit] = useState(product?.unit ?? '')
+    const [reorderLevel, setReorderLevel] = useState(product ? String(product.reorderLevel) : '')
     const [error, setError] = useState<ApiError | null>(null)
     const [submitting, setSubmitting] = useState(false)
 
@@ -23,10 +25,11 @@ export default function ProductForm({onSuccess}: {
         setSubmitting(true)
         setError(null)
         try {
-            const created = await createProduct({
-                sku, name, description, unit, reorderLevel: Number(reorderLevel),
-            })
-            onSuccess(created)
+            const body = { name, description, unit, reorderLevel: Number(reorderLevel) }
+            const saved = isEdit
+                ? await updateProduct(product.id, body)
+                : await createProduct({ sku, ...body })
+            onSuccess(saved)
         } catch (err) {
             setError(err as ApiError)
         } finally {
@@ -36,7 +39,7 @@ export default function ProductForm({onSuccess}: {
 
     return (
         <form onSubmit={handleSubmit} className="mt-6 space-y-3">
-            <Field id="sku" label="SKU" type="text" required value={sku} onChange={(e) => setSku(e.target.value)} />
+            <Field id="sku" label="SKU" type="text" required readOnly={isEdit} value={sku} onChange={(e) => setSku(e.target.value)} />
             <Field id="name" label="Name" type="text" required value={name} onChange={(e) => setName(e.target.value)} />
             <Field id="description" label="Description" type="text" required value={description}
                 onChange={(e) => setDescription(e.target.value)} />
@@ -53,7 +56,7 @@ export default function ProductForm({onSuccess}: {
                 </ul>
             )}
 
-            <Button type="submit" disabled={submitting}>Create product</Button>
+            <Button type="submit" disabled={submitting}>{isEdit ? 'Save changes' : 'Create product'}</Button>
         </form>
     )
 }

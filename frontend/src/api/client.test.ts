@@ -30,4 +30,14 @@ describe('request', () => {
             errors: { sku: 'must not be blank' },
         })
     })
+
+    it('turns a network failure into ApiError', async ()=> {
+        // fetch rejects with TypeError when the server can't be reached                                                                                          
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+
+        await expect(request('/products')).rejects.toMatchObject({
+            status: 0,
+            detail: 'Cannot reach the server',
+        })
+    })
 })

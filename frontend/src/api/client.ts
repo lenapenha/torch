@@ -13,10 +13,16 @@ export class ApiError extends Error {
 }
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const res = await fetch(`/api${path}`, {
-        ...options,
-        headers: { 'Content-Type': 'application/json', ...options.headers },
-    })
+    let res: Response
+    try {
+        res = await fetch(`/api${path}`, {
+            ...options,
+            headers: { 'Content-Type': 'application/json', ...options.headers },
+        })
+    } catch {
+        // fetch only throws when no response came back at all (backend down, no network)
+        throw new ApiError(0, 'Cannot reach the server')
+    }
 
     if (!res.ok) {
         // body is a ProblemDetail (RFC 7807), but a proxy error page may not be JSON

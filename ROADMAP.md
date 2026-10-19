@@ -50,21 +50,22 @@ Packages: `controller`, `dto`, `service`, `repository`, `model`, `enums`, `excep
 - [x] `backend` service in `docker-compose.yml` *(done 2026-10-18: `docker compose up --build` runs backend + seed against the compose DB; Helena confirmed it works; restart-persistence check passed: data survives `docker compose down`/`up`, seed skipped)* (env-driven `DB_URL`/`DB_USER`/`DB_PASSWORD`, `SPRING_PROFILES_ACTIVE=seed`, waits for the `db` healthcheck) so the image can be run and verified before the frontend exists
 
 ## P0.5 — Frontend
-*Decisions (2026-10-18): Tailwind + components-based structure (`api/`, `hooks/`, `components/`, `features/`, `pages/`); plain `fetch` wrapper, custom `useApi` hook, no state/data library; ADJUSTMENT left out of the movement form (backend gap, see Deferred); tests co-located (`X.test.tsx` beside `X.tsx`, Vitest + jsdom + RTL, setup in `src/test/setup.ts`); function first, one bounded styling pass at the end.*
-- [x] F1. Scaffold: Vite react-ts + Tailwind + React Router + dev proxy `/api` -> :8080. *Check:* seeded products fetched.
-- [ ] F2. `api/client.ts` (fetch wrapper -> `ApiError` with status, detail, field `errors`) + `api/types.ts`. *Test:* 409 ProblemDetail -> ApiError.
-- [ ] F3. `hooks/useApi.ts` (loading/error/data/reload, ignores stale responses) + Loading/ErrorMessage/EmptyState components. *Test:* loading/success/error.
-- [ ] F4. Products list: debounced `?q=` search, low-stock badge (`quantityOnHand <= reorderLevel`, 0 = out of stock). *Tests:* search calls API with `q`; badge shown.
-- [ ] F5. Create product form (no stock field; shows 409 duplicate SKU and field errors).
-- [ ] F6. Product detail + receive/issue form (server errors shown, stock/history reload on success). *Test:* mocked 409 shows the message.
-- [ ] F7. Paged movement history (newest first, Prev/Next).
-- [ ] F8. Edit product (PUT; SKU read-only).
-- [ ] F9. Styling pass with Tailwind (one commit, shared components).
+*Decisions (2026-10-18): Tailwind + components-based structure (`api/`, `hooks/`, `components/`, `features/`, `pages/`); plain `fetch` wrapper, custom `useApi` hook, no state/data library; ADJUSTMENT left out of the movement form (backend gap, see Deferred); tests co-located (`X.test.tsx` beside `X.tsx`, Vitest + jsdom + RTL, setup in `src/test/setup.ts`); function first, one bounded styling pass. Scope cut at ~2-3h left (Sunday evening): F8 deferred, F7 = latest 20 only, F9 capped at ~30 min, only 3 frontend test topics (client errors, list render + low-stock badge, movement form server error).*
+*Execution order: F4 -> F6 -> F7 -> Docker (P0.5b) -> F5 -> F9 -> final verification + README -> F8 only if time remains.*
+- [x] F1. Scaffold: Vite react-ts + Tailwind + React Router (`react-router` v7) + dev proxy `/api` -> :8080. *Done 2026-10-18.*
+- [x] F2. `api/types.ts`, `api/client.ts` (fetch wrapper -> `ApiError` with status, detail, field `errors`), `api/products.ts` (all six calls). *Done 2026-10-18; 2 tests.*
+- [x] F3a. `hooks/useApi.ts` (loading/error/data/reload, ignores stale responses). *Done 2026-10-18; 4 tests (6 frontend tests total).*
+- [x] F3b. `components/Loading`, `ErrorMessage`, `EmptyState`. Also make `request` turn a network failure (`TypeError`) into `ApiError(0, 'Cannot reach the server')`, so `ErrorMessage` never renders blank.
+- [ ] F4. Products list: table (name, SKU, stock), `LowStockBadge` (`quantityOnHand <= reorderLevel`, 0 = out of stock), loading/error/empty states, row links to detail, plain `?q=` search input (no debounce). *Test:* mocked products render and the badge shows.
+- [ ] F6. Product detail + receive/issue form (RECEIPT/ISSUE only; server error shown, stock and history reloaded from the server on success). *Test:* mocked 409 shows the message.
+- [ ] F7. Movement history: latest 20, newest first, no Prev/Next (must render ADJUSTMENT rows too).
+- [ ] F5. Create product form (no stock field; `description` is required by the backend; shows 409 duplicate SKU and per-field errors).
+- [ ] F9. Styling pass with Tailwind, capped at ~30 min, shared components only.
 
 ## P0.5b — Remaining delivery
-- [ ] Frontend Dockerfile (node build → nginx, proxy `/api`)
-- [ ] `frontend` service in `docker-compose.yml` (full compose: db, backend, frontend)
-- [ ] README (run, reset, tests, API overview, design decisions, out of scope, evolution)
+- [ ] Frontend Dockerfile (node build -> nginx; `nginx.conf` proxies `/api` to `backend:8080` with the path unchanged, SPA fallback `try_files`) + `frontend/.dockerignore`. *Do right after F7.*
+- [ ] `frontend` service in `docker-compose.yml` (port 3000, `depends_on: backend`; full compose: db, backend, frontend); update Makefile `run`. Fix root `.dockerignore` typo `frontend/node_module`.
+- [ ] README (run, reset, tests, API overview, design decisions, out of scope incl. edit-product gap, evolution)
 
 ## P0.6 — Acceptance
 - [ ] `docker compose up --build` starts with seeded data; reviewer can create products, receive/issue stock, see an invalid issue rejected, and inspect history.
@@ -89,3 +90,6 @@ Essential-only rule (Helena, 2026-10-17): anything that doesn't fit in the remai
 - [ ] Seeded products' `created_at` is the load time, not 60 days ago (needs an explicit-`Instant` overload of `createProduct`).
 - [ ] `lowStock` follow-ups: `%`/`_` escaping in `q`; Specifications if a fourth filter appears.
 - [ ] **Swagger UI: `GET /api/products` filters** — Swagger UI shows `filter` as a required query param, and sending it empty fails with "For 'filter': Required field is not provided", so the endpoint can't be called without filters (curl works). Likely cause: `ProductController.listProducts(ProductFilter filter)` binds a plain record and springdoc documents it as one object param. Fix to try: annotate with `@ParameterObject` (springdoc) so `q`, `sku`, `lowStock` show as separate optional params. Also review the other endpoints in Swagger UI (movements `page`/`size`, request bodies, error responses).
+- [ ] **Edit product in the UI (was F8)** — `PUT /api/products/{id}` and `updateProduct` in `frontend/src/api/products.ts` already exist; only the form is missing (SKU read-only). Known gap vs the acceptance item "create and update a product": state it in the README. Do it first if time remains after final verification.
+- [ ] **Movement history Prev/Next paging in the UI** — backend paging works; the UI shows only the latest 20.
+- [ ] **Frontend tests beyond the three core topics** — debounced search calls the API with `q`, create-product form errors, hook/component edge cases.

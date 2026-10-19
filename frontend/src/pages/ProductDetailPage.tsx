@@ -25,7 +25,7 @@ export default function ProductDetailPage() {
       {error && <ErrorMessage error={error}/>}
 
       {product && (
-        <div className='mt-4'>
+        <div className='mt-4 rounded bg-white p-4 shadow-sm'>
           <h1 className="text-2xl font-bold">{product.name}</h1>
           <p>SKU: {product.sku}</p>                                                                                                      
           <p>{product.description}</p>                                                                                                   

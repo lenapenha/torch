@@ -4,6 +4,8 @@ import type { Product } from "../api/types"
 import { createProduct } from "../api/products"
 import type { ApiError } from "../api/client"
 import ErrorMessage from "../components/ErrorMessage"
+import Button from "../components/Button"
+import Field from "../components/Field"
 
 export default function ProductForm({onSuccess}: {
     onSuccess: (product: Product) => void
@@ -34,39 +36,24 @@ export default function ProductForm({onSuccess}: {
 
     return (
         <form onSubmit={handleSubmit} className="mt-6 space-y-3">
-            <div>
-                <label htmlFor="sku">SKU</label>
-                <input id="sku" type="text" required value={sku} onChange={(e) => setSku(e.target.value)} />
-            </div>
-            <div>
-                <label htmlFor="name">Name</label>
-                <input id="name" type="text" required value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div>
-                <label htmlFor="description">Description</label>
-                <input id="description" type="text" required value={description}
-                    onChange={(e) => setDescription(e.target.value)} />
-            </div>
-            <div>
-                <label htmlFor="unit">Unit</label>
-                <input id="unit" type="text" required value={unit} onChange={(e) => setUnit(e.target.value)} />
-            </div>
-            <div>
-                <label htmlFor="reorderLevel">Reorder level</label>
-                <input id="reorderLevel" type="number" min="0" required value={reorderLevel}
-                    onChange={(e) => setReorderLevel(e.target.value)} />
-            </div>
+            <Field id="sku" label="SKU" type="text" required value={sku} onChange={(e) => setSku(e.target.value)} />
+            <Field id="name" label="Name" type="text" required value={name} onChange={(e) => setName(e.target.value)} />
+            <Field id="description" label="Description" type="text" required value={description}
+                onChange={(e) => setDescription(e.target.value)} />
+            <Field id="unit" label="Unit" type="text" required value={unit} onChange={(e) => setUnit(e.target.value)} />
+            <Field id="reorderLevel" label="Reorder level" type="number" min="0" required value={reorderLevel}
+                onChange={(e) => setReorderLevel(e.target.value)} />
 
             {error && <ErrorMessage error={error} />}
             {error?.errors && (
-                <ul>
+                <ul className="list-disc pl-5 text-red-700">
                     {Object.entries(error.errors).map(([field, message]) => (
                         <li key={field}>{field}: {message}</li>
                     ))}
                 </ul>
             )}
 
-            <button type="submit" disabled={submitting}>Create product</button>
+            <Button type="submit" disabled={submitting}>Create product</Button>
         </form>
     )
 }

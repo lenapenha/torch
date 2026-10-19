@@ -14,7 +14,7 @@ export default function ProductListPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold">Products</h1>
-      <Link to="/products/new">New product</Link>
+      <Link to="/products/new" className="mt-4 inline-block rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">New product</Link>
       <input 
         type="search"
         placeholder="Search by product name or SKU"
@@ -29,20 +29,20 @@ export default function ProductListPage() {
         <EmptyState message="No products found"/>
       )}
       {products && products.length > 0 && (
-        <table className="mt-4 w-full text-left">
-          <thead>
+        <table className="mt-4 w-full overflow-hidden rounded bg-white text-left shadow-sm">
+          <thead className="bg-gray-100 text-sm text-gray-600">
             <tr>
-              <th>Name</th>
-              <th>SKU</th>
-              <th>Stock</th>
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">SKU</th>
+              <th className="px-3 py-2">Stock</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y">
             {products.map((product) => (
               <tr key={product.id}>
-                <td><Link to={`/products/${product.id}`}>{product.name}</Link></td>
-                <td>{product.sku}</td>
-                <td>{product.quantityOnHand} {product.unit} <LowStockBadge product={product}/></td>
+                <td className="px-3 py-2"><Link to={`/products/${product.id}`}>{product.name}</Link></td>
+                <td className="px-3 py-2">{product.sku}</td>
+                <td className="px-3 py-2">{product.quantityOnHand} {product.unit} <LowStockBadge product={product}/></td>
               </tr>
             ))}
           </tbody>

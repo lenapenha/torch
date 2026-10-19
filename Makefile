@@ -42,3 +42,7 @@ test/integration:
 test/all:
 	make db
 	./mvnw clean verify
+
+.PHONY: up/backend
+up/backend:
+	docker compose up --build -d --wait backend

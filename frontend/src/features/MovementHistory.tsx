@@ -7,24 +7,24 @@ export default function MovementHistory({ movements }: {movements: Movement[]}) 
     }
 
     return (
-        <table className="mt-2 w-full text-left">
-            <thead>
+        <table className="mt-4 w-full overflow-hidden rounded bg-white text-left shadow-sm">
+            <thead className="bg-gray-100 text-sm text-gray-600">
                 <tr>
-                    <th>When</th>
-                    <th>Type</th>
-                    <th>Change</th>
-                    <th>Balance after</th>
-                    <th>Note</th>
+                    <th className="px-3 py-2">When</th>
+                    <th className="px-3 py-2">Type</th>
+                    <th className="px-3 py-2">Change</th>
+                    <th className="px-3 py-2">Balance after</th>
+                    <th className="px-3 py-2">Note</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y">
                 {movements.map((movement) => (
                     <tr key={movement.id}>
-                        <td>{new Date(movement.createdAt).toLocaleString()}</td>
-                        <td>{movement.type}</td>
-                        <td>{movement.quantityDelta > 0 ? '+' : ''}{movement.quantityDelta}</td>
-                        <td>{movement.balanceAfter}</td>
-                        <td>{movement.note}</td>
+                        <td className="px-3 py-2">{new Date(movement.createdAt).toLocaleString()}</td>
+                        <td className="px-3 py-2">{movement.type}</td>
+                        <td className={`px-3 py-2 ${movement.quantityDelta > 0 ? 'text-green-700' : 'text-red-700'}`}>{movement.quantityDelta > 0 ? '+' : ''}{movement.quantityDelta}</td>
+                        <td className="px-3 py-2">{movement.balanceAfter}</td>
+                        <td className="px-3 py-2">{movement.note}</td>
                     </tr>
                 ))}
             </tbody>

@@ -4,6 +4,8 @@ import type { MovementType } from "../api/types"
 import { ApiError } from "../api/client"
 import { recordMovement } from "../api/products"
 import ErrorMessage from "../components/ErrorMessage"
+import Button from "../components/Button"
+import Field from "../components/Field"
 
 export default function MovementForm({productId, onSuccess}: {
     productId: number
@@ -36,32 +38,28 @@ export default function MovementForm({productId, onSuccess}: {
             <h2 className="text-lg font-semibold">Record stock movement</h2>
 
             <div>
-                <label htmlFor="type">Type</label>
-                <select id="type" value={type} onChange={(e) => setType(e.target.value as MovementType)}>
+                <label htmlFor="type" className="block text-sm font-medium">Type</label>
+                <select id="type" value={type} onChange={(e) => setType(e.target.value as MovementType)}
+                    className="mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2">
                     <option value='RECEIPT'>Receive stock</option>
                     <option value='ISSUE'>Issue stock</option>
                 </select>
             </div>
 
-            <div>                                                                                                                                  
-                <label htmlFor="quantity">Quantity</label>                                                                                         
-                <input id="quantity" type="number" min="1" required value={quantity}                                                               
-                    onChange={(e) => setQuantity(e.target.value)} />                                                                               
-            </div>
-             <div>                                                                                                                                  
-                <label htmlFor="note">Note (optional)</label>                                                                                      
-                <input id="note" type="text" value={note} onChange={(e) => setNote(e.target.value)} />                                             
-            </div>
+            <Field id="quantity" label="Quantity" type="number" min="1" required value={quantity}
+                onChange={(e) => setQuantity(e.target.value)} />
+            <Field id="note" label="Note (optional)" type="text" value={note}
+                onChange={(e) => setNote(e.target.value)} />
             {error && <ErrorMessage error={error} />}                                                                                              
             {error?.errors && (                                                                                                                    
-                <ul>                                                                                                                               
+                <ul className="list-disc pl-5 text-red-700">                                                                                                                               
                     {Object.entries(error.errors).map(([field, message]) => (                                                                      
                         <li key={field}>{field}: {message}</li>                                                                                    
                     ))}                                                                                                                            
                 </ul>                                                                                                                              
             )}
 
-            <button type="submit" disabled={submitting}>Save movement</button>
+            <Button type="submit" disabled={submitting}>Save movement</Button>
         </form>
     )
 }

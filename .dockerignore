@@ -4,4 +4,4 @@ target
 .DS_Store
 docs
 *.md
-frontend/node_module
+frontend

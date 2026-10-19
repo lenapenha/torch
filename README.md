@@ -7,7 +7,7 @@ Torch is a small-business inventory tracking application. It is designed to answ
 
 The core design is an append-only stock-movement ledger. Every inventory change is recorded, and the product's current balance is maintained alongside that history.
 
-> **Project status — 2026-10-18:** The Spring Boot backend for product and stock-movement APIs is implemented. The current README reports 79 passing tests: 56 unit tests (`./mvnw test`, no database needed) and 23 integration tests (`./mvnw verify`, needs PostgreSQL) that cover the create/receive/issue/history workflow, rejected issues, repository queries, a concurrency test, and the seed data. The seed loader (profile `seed`) is implemented and tested; the React frontend is in progress (scaffold, API client, `useApi` hook, product list with search and low-stock badges, product detail page, the receive/issue form and the latest-20 movement history are implemented; 9 Vitest tests pass with `npm test` in `frontend/`; create product and the frontend Docker service are still to do) and the full Docker Compose application is still to be finished.
+> **Project status — 2026-10-18:** The Spring Boot backend for product and stock-movement APIs is implemented. The current README reports 79 passing tests: 56 unit tests (`./mvnw test`, no database needed) and 23 integration tests (`./mvnw verify`, needs PostgreSQL) that cover the create/receive/issue/history workflow, rejected issues, repository queries, a concurrency test, and the seed data. The seed loader (profile `seed`) is implemented and tested; the React frontend (product list with search and low-stock badges, product detail, receive/issue form, latest-20 movement history; 9 Vitest tests pass with `npm test` in `frontend/`) is served by Nginx, and `docker compose up --build` now starts the database, backend (seeded) and frontend (UI on `http://localhost:3000`). Still to do: create-product form, styling pass, edit product in the UI (planned known gap), and the final clean-checkout verification.
 
 ## Contents
 
@@ -20,7 +20,7 @@ The core design is an append-only stock-movement ledger. Every inventory change 
 - [Run the tests](#3-run-the-tests)
 - [Intentionally excluded functionality](#intentionally-excluded-functionality)
 - [Known gaps](#known-gaps)
-- [Planned full-application setup](#planned-full-application-setup)
+- [Run the full application with Docker](#run-the-full-application-with-docker)
 - [What I would improve with another week](#what-i-would-improve-with-another-week)
 - [Time spent](#time-spent)
 - [Use of AI tools](#use-of-ai-tools)
@@ -48,7 +48,7 @@ The core design is an append-only stock-movement ledger. Every inventory change 
 
 ### Local development and delivery
 
-- Docker Compose for PostgreSQL and, in the planned final setup, the application services
+- Docker Compose for PostgreSQL, the backend and the Nginx-served frontend
 - Environment-based database configuration
 - A README-driven setup intended to work from a clean checkout on macOS
 
@@ -80,14 +80,13 @@ The current backend includes:
 
 The following are not yet complete in the current repository state:
 
-- React frontend: the product list, product detail, receive/issue form and latest-20 movement history are implemented; create product and the frontend Docker service are still to do. Edit product in the UI is planned as a known gap.
-- Full `docker compose up --build` application delivery: the `frontend` service is still missing.
+- React frontend: the product list, product detail, receive/issue form and latest-20 movement history are implemented and served through Docker; the create-product form and a styling pass are still to do. Edit product in the UI is planned as a known gap.
 - Dashboard summary and historical balance chart.
 - Some input-validation and exception-handling hardening described in [Known gaps](#known-gaps).
 
 ## Run the current backend locally
 
-These instructions describe the **current backend-only state**, not the planned one-command full application.
+These instructions run the backend directly with Maven, which is the development loop. For the full application in one command, see [Run the full application with Docker](#run-the-full-application-with-docker).
 
 ### Prerequisites
 
@@ -164,6 +163,7 @@ The same commands are available as `make` targets (see the `Makefile`):
 
 | Target | What it does |
 |---|---|
+| `make up` | `docker compose up --build -d`: database, backend (seeded) and frontend in containers |
 | `make run` | starts the database, then the API (no sample data) |
 | `make run/seed` | starts the database, then the API with the `seed` profile (sample data) |
 | `make test/unit` | `./mvnw clean test` (no database) |
@@ -191,7 +191,7 @@ docker compose up -d db
 
 ### Clean-checkout status
 
-At the current stage, the backend can be run locally with the steps above. The required final assessment experience—one command to start the database, backend, frontend, and seed data—is **not yet implemented**. See [Planned full-application setup](#planned-full-application-setup).
+The one-command experience (`docker compose up --build`) starts the database, backend with seed data and frontend, and has been verified by hand on the developer machine (view, receive, issue, rejected issue, history, refresh on a detail URL, restart keeps data). It has not yet been verified from a fresh clone. See [Run the full application with Docker](#run-the-full-application-with-docker).
 
 ## API overview
 
@@ -354,11 +354,11 @@ The application uses an injected `Clock` for application-generated timestamps.
 
 ### 11. React + Vite instead of Next.js
 
-The planned frontend is a React single-page application built with Vite, calling the Spring Boot API.
+The frontend is a React single-page application built with Vite, calling the Spring Boot API.
 
 **Why:** this administrative interface does not require server-side rendering or SEO. Vite keeps the frontend build setup small, and Spring Boot remains the single backend for inventory rules and persistence.
 
-**Trade-off:** the frontend and backend are separate processes during development and both must be started. The planned Docker/Nginx setup will serve the built frontend and proxy API requests to Spring Boot.
+**Trade-off:** the frontend and backend are separate processes during development and both must be started. The Docker/Nginx setup serves the built frontend and proxy API requests to Spring Boot.
 
 ### 12. Maven instead of Gradle
 
@@ -416,19 +416,19 @@ The following items were identified in the current backend and should be address
 - `%` and `_` in the `q` search parameter act as SQL `LIKE` wildcards. Decide whether that behavior is acceptable or should be escaped.
 - Seeded products have `created_at` set to the load time, while their first movement is dated about 60 days earlier (`createProduct` has no explicit-timestamp overload). Cosmetic, accepted for the demo data.
 - Swagger UI shows the `filter` parameter of `GET /api/products` as required, so the endpoint cannot be called without filters from Swagger (curl works). Probably fixed by `@ParameterObject` on the controller parameter.
-- The React frontend, frontend Compose service, and clean-checkout end-to-end verification are still needed.
+- The create-product form, the styling pass, edit product in the UI, and clean-checkout end-to-end verification are still needed.
 
-## Planned full-application setup
+## Run the full application with Docker
 
-The intended final reviewer experience is:
+The reviewer experience is:
 
 ```bash
 docker compose up --build
 ```
 
-This is a **target, not yet complete**: today `docker compose up --build` starts `db` and `backend` (API on `http://localhost:8080`, seeded with demo data); the `frontend` service is still to be added.
+This starts three services (`make up` runs the same in the background). The frontend waits until the backend healthcheck passes, so the first load works without errors; allow about half a minute on the first start.
 
-The planned Compose setup will start:
+The Compose setup starts:
 
 - PostgreSQL 17 with a persistent volume and health check.
 - The Spring Boot backend using Java 25.
@@ -436,7 +436,7 @@ The planned Compose setup will start:
 - A reverse proxy from frontend `/api` requests to the backend.
 - An idempotent seed profile that loads sample products and movement history.
 
-The target URLs are:
+The URLs are:
 
 - UI: `http://localhost:3000`
 - API: `http://localhost:8080`

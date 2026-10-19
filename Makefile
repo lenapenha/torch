@@ -15,6 +15,10 @@ down:
 build:
 	./mvnw clean package -DskipTests
 
+.PHONY: up
+up:
+	docker compose up --build -d
+
 .PHONY: run
 run:
 	make db

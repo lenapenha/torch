@@ -51,7 +51,7 @@ Packages: `controller`, `dto`, `service`, `repository`, `model`, `enums`, `excep
 
 ## P0.5 — Frontend
 *Decisions (2026-10-18): Tailwind + components-based structure (`api/`, `hooks/`, `components/`, `features/`, `pages/`); plain `fetch` wrapper, custom `useApi` hook, no state/data library; ADJUSTMENT left out of the movement form (backend gap, see Deferred); tests co-located (`X.test.tsx` beside `X.tsx`, Vitest + jsdom + RTL, setup in `src/test/setup.ts`); function first, one bounded styling pass. Scope cut at ~2-3h left (Sunday evening): F8 deferred, F7 = latest 20 only, F9 capped at ~30 min, only 3 frontend test topics (client errors, list render + low-stock badge, movement form server error).*
-*Execution order: F4 -> F6 -> F7 (done) -> Docker (P0.5b, next) -> F5 -> F9 -> final verification + README -> F8 only if time remains.*
+*Execution order: F4 -> F6 -> F7 (done) -> Docker (P0.5b, done) -> F5 (next) -> F9 -> final verification + README -> F8 only if time remains.*
 - [x] F1. Scaffold: Vite react-ts + Tailwind + React Router (`react-router` v7) + dev proxy `/api` -> :8080. *Done 2026-10-18.*
 - [x] F2. `api/types.ts`, `api/client.ts` (fetch wrapper -> `ApiError` with status, detail, field `errors`), `api/products.ts` (all six calls). *Done 2026-10-18; 2 tests.*
 - [x] F3a. `hooks/useApi.ts` (loading/error/data/reload, ignores stale responses). *Done 2026-10-18; 4 tests (6 frontend tests total).*
@@ -63,8 +63,8 @@ Packages: `controller`, `dto`, `service`, `repository`, `model`, `enums`, `excep
 - [ ] F9. Styling pass with Tailwind, capped at ~30 min, shared components only.
 
 ## P0.5b — Remaining delivery
-- [ ] Frontend Dockerfile (node build -> nginx; `nginx.conf` proxies `/api` to `backend:8080` with the path unchanged, SPA fallback `try_files`) + `frontend/.dockerignore`. *Do right after F7.*
-- [ ] `frontend` service in `docker-compose.yml` (port 3000, `depends_on: backend`; full compose: db, backend, frontend); update Makefile `run`. Fix root `.dockerignore` typo `frontend/node_module`.
+- [x] Frontend Dockerfile (node build -> nginx; `nginx.conf` proxies `/api` to `backend:8080` with the path unchanged, SPA fallback `try_files`) + `frontend/.dockerignore`. *Do right after F7.*
+- [x] `frontend` service in `docker-compose.yml` (port 3000, `depends_on: backend`; full compose: db, backend, frontend); Makefile gets a new `make up` target (`run` unchanged, it is the local Maven loop). Root `.dockerignore` typo fixed (see below). Original: fix root `.dockerignore` typo `frontend/node_module`. *Done 2026-10-18: backend healthcheck enabled (interval 5s, retries 10, start_period 20s) and `frontend` waits for `service_healthy`; image builds; manual check of the whole flow at http://localhost:3000 passed (view, receive, issue, rejected issue, history, refresh on a detail URL, restart keeps data).*
 - [ ] README (run, reset, tests, API overview, design decisions, out of scope incl. edit-product gap, evolution)
 
 ## P0.6 — Acceptance

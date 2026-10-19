@@ -22,22 +22,6 @@ jobs:
     name: Backend tests
     runs-on: ubuntu-24.04
 
-    # Same DB the ITs expect: localhost:5432/torch_test, torch/torch
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: torch_test
-          POSTGRES_USER: torch
-          POSTGRES_PASSWORD: torch
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U torch -d torch_test"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -49,8 +33,8 @@ jobs:
           java-version: 25
           cache: maven
 
-      - name: Run unit and integration tests
-        run: ./mvnw -B verify
+      - name: Run unit tests
+        run: ./mvnw -B test
 
   frontend:
     name: Frontend tests

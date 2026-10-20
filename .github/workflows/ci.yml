@@ -2,7 +2,7 @@ name: CI, Build and Push Image
 
 on:
   push:
-    branches: [main, ci/github-actions]
+    branches: [main]
     paths-ignore:
       - '**.md'
       - '.claude/**'
@@ -92,8 +92,7 @@ jobs:
   publish:
     name: Build and push ${{ matrix.image }}
     needs: [backend, frontend, docker]
-    #if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/github-actions') && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
 
     strategy:
@@ -145,8 +144,7 @@ jobs:
   deploy:
     name: Deploy to VPS
     needs: publish
-    #if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/github-actions') && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     environment: production
 

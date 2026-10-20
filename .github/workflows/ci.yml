@@ -2,7 +2,7 @@ name: CI, Build and Push Image
 
 on:
   push:
-    branches: [main, ci/github-action]
+    branches: [main, ci/github-actions]
     paths-ignore:
       - '**.md'
       - '.claude/**'
@@ -93,7 +93,7 @@ jobs:
     name: Build and push ${{ matrix.image }}
     needs: [backend, frontend, docker]
     #if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    if: github.ref == 'refs/heads/ci/github-actions' && github.event_name != 'pull_request'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/github-actions') && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
 
     strategy:

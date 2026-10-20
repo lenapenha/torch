@@ -85,3 +85,17 @@ A reviewer must be able to:
 8. Restart the application without losing persisted data.
 
 Run the relevant automated tests and verify the final application workflow.
+
+## Plan vs. current state
+The sections above are the original plan and stay as written. This section records where the project actually stands and where it differs from the plan. `ROADMAP.md` has the step-by-step detail.
+
+| Area | Planned | Current state |
+|---|---|---|
+| P0 items 0-6 | Backend, concurrency, seed, backend Docker, frontend, full compose, README, acceptance | All done. `make up` starts the seeded app; the acceptance items are ticked in `ROADMAP.md` (P0.6). |
+| P1 | Dashboard summary, low-stock filter | Low-stock filter done. `GET /api/summary` not done. |
+| Optional | Balance chart, activity feed, GitHub Actions, Testcontainers | GitHub Actions done (tests, Compose smoke test, publish, deploy). The rest not done. Also not done: `GET /api/movements`, `GET /api/products/{id}/balance-history`. |
+| ADJUSTMENT movements | Nonzero signed delta, rejected if below zero | Not implemented: the service treats it like a receipt. Deferred in `ROADMAP.md`, listed in the README's Known gaps. The UI form offers only receive and issue. |
+| Tests | Integration tests as part of the normal run | Split: `./mvnw test` runs the 56 unit tests with no database (what CI runs); `./mvnw verify` adds the 23 `*IT` integration tests, which need PostgreSQL. Plus 10 frontend tests (Vitest). |
+| Commands | `docker compose up --build`, raw `./mvnw` commands | A grouped `Makefile` (`make help` lists every target): `make up`, `make run`, `make run/seed`, `make test/unit`, `make test/all`, `make test/frontend`, `make reset`. The README uses these targets. |
+| Frontend | List, search, low-stock badge, create form, detail, movement form, paged history | Done, plus an edit-product form. History shows only the latest 20 movements (no paging); no deactivate button. |
+| Exception handling | One `GlobalExceptionHandler` for 400/404/409 | Done, but malformed JSON, unknown URLs and wrong methods still return 500 (Known gaps). |

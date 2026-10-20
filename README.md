@@ -7,20 +7,23 @@ Torch is a small-business inventory tracking application. It is designed to answ
 
 The core design is an append-only stock-movement ledger. Every inventory change is recorded, and the product's current balance is maintained alongside that history.
 
-> **Project status — 2026-10-18:** The Spring Boot backend for product and stock-movement APIs is implemented. The current README reports 79 passing tests: 56 unit tests (`./mvnw test`, no database needed) and 23 integration tests (`./mvnw verify`, needs PostgreSQL) that cover the create/receive/issue/history workflow, rejected issues, repository queries, a concurrency test, and the seed data. The seed loader (profile `seed`) is implemented and tested; the React frontend (product list with search and low-stock badges, product detail, receive/issue form, latest-20 movement history; 9 Vitest tests pass with `npm test` in `frontend/`) is served by Nginx, and `docker compose up --build` now starts the database, backend (seeded) and frontend (UI on `http://localhost:3000`). Still to do: create-product form, styling pass, edit product in the UI (planned known gap), and the final clean-checkout verification.
+A demo of the application is deployed on a Google Cloud Compute Engine `e2-micro` VM: http://34.55.22.240:3000
+
+> **Status:** functionally complete and verified from a clean Docker state. 56 backend unit tests, 23 integration tests and 10 frontend tests pass. The `make up` flow was checked by hand and by the CI smoke test, but not yet from a fresh `git clone` on another machine. See [Known gaps](#known-gaps).
 
 ## Contents
 
 - [Technology stack](#technology-stack)
 - [Current functionality](#current-functionality)
-- [Run the current backend locally](#run-the-current-backend-locally)
+- [Run the full application with Docker](#run-the-full-application-with-docker)
+- [Run the backend locally](#run-the-backend-locally)
 - [API overview](#api-overview)
 - [Data model](#data-model)
 - [Technical decisions and trade-offs](#technical-decisions-and-trade-offs)
-- [Run the tests](#3-run-the-tests)
+- [Run the tests](#2-run-the-tests)
 - [Intentionally excluded functionality](#intentionally-excluded-functionality)
 - [Known gaps](#known-gaps)
-- [Run the full application with Docker](#run-the-full-application-with-docker)
+- [Continuous integration and deployment](#continuous-integration-and-deployment)
 - [What I would improve with another week](#what-i-would-improve-with-another-week)
 - [Time spent](#time-spent)
 - [Use of AI tools](#use-of-ai-tools)
@@ -37,7 +40,7 @@ The core design is an append-only stock-movement ledger. Every inventory change 
 - springdoc-openapi for API documentation
 - Spring Boot Actuator for health information
 
-### Frontend — in progress
+### Frontend
 
 - React
 - TypeScript
@@ -50,86 +53,76 @@ The core design is an append-only stock-movement ledger. Every inventory change 
 
 - Docker Compose for PostgreSQL, the backend and the Nginx-served frontend
 - Environment-based database configuration
-- A README-driven setup intended to work from a clean checkout on macOS
 
 ### Why this stack?
 
-The assessment permits choosing a framework and database. Java and Spring Boot were selected because I have used them in previous projects and can focus on the domain rules rather than learning a new backend framework during the take-home window.
-
-React with Vite was selected over Next.js because this is an administrative interface backed by a separate Spring Boot REST API. The application does not require server-side rendering or search-engine optimization, and Vite keeps the frontend build and development setup small. React Router provides client-side navigation.
-
-Maven was selected over Gradle because either tool would meet the requirements, and Maven's conventional lifecycle is sufficient for this application's build and tests. The Maven Wrapper makes the build reproducible without requiring a globally installed Maven version.
+Java and Spring Boot because I know them well and could focus on the domain rules. React with Vite as a client-side rendered single-page app, rather than Next.js, because this is an administrative UI over a separate REST API, with no need for server-side rendering or SEO; React Router handles client-side navigation. Maven rather than Gradle because its conventional lifecycle is enough, and the Maven Wrapper makes builds reproducible without a global install.
 
 ## Current functionality
 
-The current backend includes:
+- Product create, retrieve, list, update and soft deactivation, with unique SKUs, search and a low-stock filter.
+- Stock receipts and issues, with paged per-product movement history.
+- Transactional stock updates under a pessimistic row lock.
+- RFC 7807 `ProblemDetail` errors from one central handler; DTO records instead of entities.
+- Flyway schema; idempotent `seed` profile loader (12 products, about 60 days of back-dated movements) that goes through the normal services.
+- React UI: product list with search and low-stock badges, create and edit forms (SKU read-only), a receive/issue form that shows server errors, and the latest 20 movements.
+- GitHub Actions pipeline that tests, smoke-tests Compose, publishes images and deploys (see [Continuous integration and deployment](#continuous-integration-and-deployment)).
 
-- Product creation, retrieval, listing, update, and soft deactivation.
-- SKU uniqueness validation.
-- Product search and low-stock filtering.
-- Recording stock receipts and issues.
-- Paged per-product movement history.
-- Transactional stock updates and a pessimistic product-row lock for stock movements.
-- Validation and consistent API error responses using RFC 7807 `ProblemDetail`.
-- Flyway-managed database schema.
-- DTO records rather than exposing JPA entities directly.
-- An injected `Clock` to make timestamp behavior testable.
-- An idempotent seed loader (profile `seed`) with 12 products and about 60 days of back-dated movements, created through the normal services.
+Limitations are listed under [Known gaps](#known-gaps).
 
-### Current limitations
+## Run the full application with Docker
 
-The following are not yet complete in the current repository state:
+The only requirement is Docker with Docker Compose (plus Git to clone the repository): the backend and frontend are built inside containers, so no local JDK, Maven or Node is needed.
 
-- React frontend: the product list, product detail, receive/issue form and latest-20 movement history are implemented and served through Docker; the create-product form and a styling pass are still to do. Edit product in the UI is planned as a known gap.
-- Dashboard summary and historical balance chart.
-- Some input-validation and exception-handling hardening described in [Known gaps](#known-gaps).
+```bash
+make up
+```
 
-## Run the current backend locally
+This builds and starts three services in the background (follow the logs with `make logs`, stop with `make down`). The frontend waits until the backend healthcheck passes, so the first load works without errors; allow about half a minute on the first start.
 
-These instructions run the backend directly with Maven, which is the development loop. For the full application in one command, see [Run the full application with Docker](#run-the-full-application-with-docker).
+Compose runs PostgreSQL (persistent volume, health check), the seeded Spring Boot backend, and the React build served by Nginx, which proxies `/api` to the backend.
+
+URLs:
+
+- UI: `http://localhost:3000`
+- API: `http://localhost:8080/api/products`
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Health: `http://localhost:8080/actuator/health`
+
+To wipe the database volume and start again:
+
+```bash
+make reset
+```
+
+**Warning:** `make reset` deletes persisted database data.
+
+## Run the backend locally
+
+The same application broken into pieces: PostgreSQL in Docker, the API on the host. This is the development loop; for just trying the app, use [Run the full application with Docker](#run-the-full-application-with-docker) above.
 
 ### Prerequisites
 
-- JDK 25
-- Docker with Docker Compose
+- Docker with Docker Compose (runs PostgreSQL)
 - Git
-- No global Maven installation is required; the repository includes the Maven Wrapper.
+- JDK 25, to run or test the backend on the host. No global Maven installation is required; the repository includes the Maven Wrapper.
 
-### 1. Start PostgreSQL
+**Before you start:** run `make down` if you used `make up`. Its backend container holds port 8080, so `make run` would fail with "Port 8080 was already in use". To wipe the database in this flow, use `make db/reset`, not `make reset`.
 
-From the repository root:
+### 1. Start the API
 
-```bash
-docker compose up -d db
-```
-
-The current Compose configuration should start PostgreSQL 17 with the local database credentials used by the application. If you have changed the Compose configuration, ensure that its database name, username, and password match the application settings below.
-
-### 2. Start the Spring Boot API
+Start it either without or with sample data (12 products and about 60 days of stock movements):
 
 ```bash
-./mvnw spring-boot:run
+make run        # no sample data
+make run/seed   # with sample data
 ```
 
-Flyway creates the database schema at application startup.
+Both start PostgreSQL in Docker first, then the API (Flyway creates the schema). The API keeps the terminal until `Ctrl+C`, so use a second terminal for anything else. To switch between the two commands, stop the running one first (port 8080).
 
-#### Optional: load the sample data
+The seed loader only runs if there are no products yet, so it never duplicates data. To start again from scratch, reset the database first (see [Reset the local database](#3-reset-the-local-database)). Compose sets `SPRING_PROFILES_ACTIVE=seed`.
 
-The database starts empty. To start the API with sample data (12 products and about 60 days of stock movements), activate the `seed` profile:
-
-```bash
-make run/seed
-# or, without make:
-./mvnw spring-boot:run -Dspring-boot.run.profiles=seed
-```
-
-The loader only runs if there are no products yet, so restarting with the profile never duplicates data. To start again from scratch, reset the database first (see [Reset the local database](#4-reset-the-local-database)). Without the profile (`make run`), nothing is seeded. In the full Docker Compose setup the profile is set through `SPRING_PROFILES_ACTIVE=seed`.
-
-By default, the API is expected at:
-
-- API base path: `http://localhost:8080/api`
-- Swagger UI: `http://localhost:8080/swagger-ui.html`
-- Health endpoint: `http://localhost:8080/actuator/health`
+The API is at `http://localhost:8080/api/products`, with Swagger UI at `/swagger-ui.html` and health at `/actuator/health`.
 
 Database configuration is environment-driven, with local defaults:
 
@@ -139,63 +132,34 @@ Database configuration is environment-driven, with local defaults:
 | `DB_USER` | `torch` |
 | `DB_PASSWORD` | `torch` |
 
-Do not use these development defaults for a deployed environment.
+Do not use these defaults in a deployed environment.
 
-### 3. Run the tests
+### 2. Run the tests
 
-Tests are split into two groups:
+Unit tests (`*Test`) are database-free and are what CI runs. Integration tests (`*IT`) need PostgreSQL and are run manually. Run `make` to list all targets:
 
-| Command | Runs | Needs PostgreSQL |
+| Target | What it does | Needs PostgreSQL |
 |---|---|---|
-| `./mvnw test` | Unit and web-slice tests (`*Test`): controllers, services | No |
-| `./mvnw verify` | The above plus integration tests (`*IT`): repository queries, application startup, API workflow, concurrency | Yes |
+| `make test/unit` | Controller and service tests | No |
+| `make test/integration` | Repository queries, startup, API workflow, concurrency | Yes (started for you) |
+| `make test/all` | Unit and integration tests | Yes (started for you) |
+| `make test/frontend` | Frontend tests (Vitest + React Testing Library) | No |
 
-`./mvnw test` is the fast, database-free build intended for CI. The integration tests are heavier, so they are run manually:
-
-```bash
-docker compose up -d db
-./mvnw verify
-```
-
-To run only the integration tests: `./mvnw test-compile failsafe:integration-test failsafe:verify`.
-
-The same commands are available as `make` targets (see the `Makefile`):
-
-| Target | What it does |
-|---|---|
-| `make up` | `docker compose up --build -d`: database, backend (seeded) and frontend in containers |
-| `make run` | starts the database, then the API (no sample data) |
-| `make run/seed` | starts the database, then the API with the `seed` profile (sample data) |
-| `make test/unit` | `./mvnw clean test` (no database) |
-| `make test/integration` | starts the database, then runs only the integration tests |
-| `make test/all` | starts the database, then `./mvnw clean verify` |
-
-Integration tests run against a separate `torch_test` database (profile `test`, see `src/test/resources/application-test.yaml`), never against the dev `torch` database. They truncate their tables before and after each test, so they only ever touch `torch_test`.
-
-`torch_test` is created automatically by `docker/db/init-test-db.sql` the first time the database volume is created. If your volume already existed before that script was added, either reset it (see below) or create the database once:
+Integration tests run against a separate `torch_test` database (profile `test`), never the dev `torch` database, because they truncate tables between tests. `docker/db/init-test-db.sql` creates it the first time the volume is created. If your volume predates that script, reset it (below) or run:
 
 ```bash
-docker exec torch-db psql -U torch -d torch -c "CREATE DATABASE torch_test OWNER torch;"
+make db/create-test
 ```
 
-Current result: 56 unit tests (`./mvnw test`) and 23 integration tests (`./mvnw verify`), all passing. Re-run the commands and use their actual output as the source of truth for the current checkout.
-
-### 4. Reset the local database
+### 3. Reset the local database
 
 **Warning:** this deletes the PostgreSQL data volume.
 
 ```bash
-docker compose down -v
-docker compose up -d db
+make db/reset
 ```
 
-### Clean-checkout status
-
-The one-command experience (`docker compose up --build`) starts the database, backend with seed data and frontend, and has been verified by hand on the developer machine (view, receive, issue, rejected issue, history, refresh on a detail URL, restart keeps data). It has not yet been verified from a fresh clone. See [Run the full application with Docker](#run-the-full-application-with-docker).
-
 ## API overview
-
-All current endpoints are under `/api`.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -212,7 +176,7 @@ All current endpoints are under `/api`.
 - `?sku=` performs an exact SKU lookup and can find deactivated products, since the SKU remains reserved.
 - `?q=` performs a partial, case-insensitive match on product name or SKU among active products.
 - `?lowStock=true` returns active products where `quantity_on_hand <= reorder_level`. It can be combined with `q`.
-- If more than one filter is provided, the current implementation uses this precedence: `sku` before `q` before the unfiltered list; `lowStock` can be combined with `q`.
+- Precedence when combined: `sku`, then `q`, then the unfiltered list; `lowStock` can be combined with `q`.
 
 ### Stock movement rules
 
@@ -220,24 +184,21 @@ All current endpoints are under `/api`.
 - `ISSUE` accepts a positive requested quantity; the service records it as a negative delta.
 - Zero or negative quantities are rejected with `400 Bad Request`.
 - An issue that would make stock negative is rejected with `409 Conflict`.
-- A rejected issue must leave both the current balance and movement history unchanged.
-
-**Known gap:** `ADJUSTMENT` exists in the schema and enum, but its intended signed-delta behavior is not complete in the current implementation. Until implemented and tested, do not rely on it for stock corrections. See [Known gaps](#known-gaps).
+- A rejected issue leaves both the balance and the movement history unchanged.
+- `ADJUSTMENT` is not complete yet; see [Known gaps](#known-gaps).
 
 ### Error responses
 
-The API uses a central exception handler and RFC 7807 `ProblemDetail` responses. Intended mappings include:
+The API uses a central exception handler and RFC 7807 `ProblemDetail` responses. The mappings are:
 
 - `400 Bad Request` for request validation errors.
 - `404 Not Found` for missing resources.
 - `409 Conflict` for duplicate SKUs and insufficient stock.
 - `500 Internal Server Error` for unexpected errors.
 
-Some malformed-request and unsupported-method cases still need hardening, as listed below.
-
 ## Data model
 
-The schema is managed by Flyway migrations under `src/main/resources/db/migration`. Flyway migrations define the schema; sample data is intended to be loaded separately by an application seed loader.
+Flyway migrations under `src/main/resources/db/migration` define the schema; sample data comes from the seed loader.
 
 ### `product`
 
@@ -276,7 +237,7 @@ For each product, the intended invariant is:
 quantity_on_hand = SUM(stock_movement.quantity_delta)
 ```
 
-This invariant assumes that all products start at zero and every subsequent stock change is represented by a movement. The application updates the current balance and inserts its movement in the same transaction. `SeedDataLoaderIT` checks this invariant for every seeded product; end-to-end verification through Docker Compose is still planned.
+Products start at zero and every stock change is a movement, written in the same transaction as the balance update. `SeedDataLoaderIT` checks the invariant for every seeded product.
 
 ## Technical decisions and trade-offs
 
@@ -314,17 +275,11 @@ Deleting a product sets `active = false`. Normal product lists hide inactive pro
 
 ### 5. SKU and stock are not ordinary editable product fields
 
-SKU is immutable after creation. Product updates do not directly change the current stock balance. Stock changes must go through the movement workflow.
+SKU is immutable, products start at zero stock, and product updates never change the balance. Initial inventory and every later change go through the movement workflow.
 
-**Why:** this protects product identity and ensures that stock changes have an audit record.
+**Why:** it protects product identity and keeps the ledger invariant true from the first row, with no unexplained starting balance.
 
-### 6. Start products at zero stock
-
-A new product starts with `quantity_on_hand = 0`. Initial inventory is added through a receipt movement.
-
-**Why:** it keeps the ledger invariant true from the beginning rather than creating an unexplained starting balance.
-
-### 7. Flyway for schema changes; application code for seed data
+### 6. Flyway for schema changes; application code for seed data
 
 Flyway migrations create and evolve the schema. Demo data is loaded by an idempotent `ApplicationRunner` (`SeedDataLoader`) activated by the `seed` profile, using the normal product and movement services.
 
@@ -332,13 +287,13 @@ Flyway migrations create and evolve the schema. Demo data is loaded by an idempo
 
 **Trade-off:** the loader uses an explicit-timestamp overload of the movement service to back-date history. The REST API cannot reach it, but it is a second entry point to keep in sync with the movement rules (the normal method delegates to it, so the rules live in one place).
 
-### 8. DTOs and centralized error handling
+### 7. DTOs and centralized error handling
 
 The API uses request/response DTO records rather than exposing JPA entities. A central exception handler formats API errors as `ProblemDetail`.
 
 **Why:** this keeps the external API separate from persistence details and makes error responses more consistent.
 
-### 9. Explicit repository queries for current filters
+### 8. Explicit repository queries for current filters
 
 The current search and low-stock filters use separate repository methods rather than introducing JPA Specifications.
 
@@ -346,67 +301,40 @@ The current search and low-stock filters use separate repository methods rather 
 
 **Trade-off:** if filtering requirements grow significantly, specifications or another composable query approach may become easier to maintain.
 
-### 10. Injected `Clock`
+### 9. Injected `Clock`
 
 The application uses an injected `Clock` for application-generated timestamps.
 
-**Why:** tests can use a fixed clock for deterministic assertions. The same approach is intended to support reproducible, back-dated demo movements.
+**Why:** tests can use a fixed clock for deterministic assertions. The seed loader back-dates its movements through an explicit-timestamp overload of the movement service instead.
 
-### 11. React + Vite instead of Next.js
-
-The frontend is a React single-page application built with Vite, calling the Spring Boot API.
-
-**Why:** this administrative interface does not require server-side rendering or SEO. Vite keeps the frontend build setup small, and Spring Boot remains the single backend for inventory rules and persistence.
-
-**Trade-off:** the frontend and backend are separate processes during development and both must be started. The Docker/Nginx setup serves the built frontend and proxy API requests to Spring Boot.
-
-### 12. Maven instead of Gradle
-
-Maven was chosen even though both Maven and Gradle are familiar options.
-
-**Why:** the standard Maven lifecycle and Spring Boot dependency management are sufficient for this project's needs. The Maven Wrapper makes build commands consistent without a global Maven installation.
-
-**Trade-off:** Gradle would also work; this is a project-fit choice, not a claim that Maven is universally better.
-
-### 13. No additional infrastructure
+### 10. No additional infrastructure
 
 The project deliberately avoids queues, caches, microservices, and frontend state-management libraries.
 
 **Why:** the application is small, and these components would add setup and operational work without helping meet the core assessment requirements.
 
-### 14. Integration tests run against a separate database
+### 11. Integration tests run against a separate database
 
-Integration tests use their own `torch_test` database instead of the dev    
-`torch` database. They run on the same Postgres container, so this adds no new infrastructure.                                                         
-                                                                          
-**Why:** Tests need a known, empty starting state, and they truncate      
-tables between runs. Against the dev database, they would collide with      
-existing data (for example duplicate SKUs) and destroy the seed data used to try the app.
+Integration tests use their own `torch_test` database on the same Postgres container, so there is no new infrastructure.
 
-**How:**                                                                  
-`docker/db/init-test-db.sql` creates `torch_test` the first time the Postgres volume is created, so a fresh `docker compose up` provides it automatically.
+**Why:** they need a known, empty starting state and truncate tables between tests. Against the dev database they would collide with existing data and destroy the seed data.
 
-**Trade-off:** tests need a running Compose Postgres, and `torch_test` shares a server with the dev database, separated only by name. Testcontainers would give each run its own throwaway database, at the cost of extra dependencies and slower startup. For the same reason, integration tests (`*IT`) are kept out of `./mvnw test` and run with `./mvnw verify`, so a CI that only runs `./mvnw test` needs no database.
+**Trade-off:** tests need a running Compose Postgres, and `torch_test` is separated from the dev database only by name. Testcontainers would give each run a throwaway database, at the cost of extra dependencies and slower startup. For the same reason `*IT` classes run on `./mvnw verify`, not `./mvnw test`, so CI needs no database.
 
 ## Intentionally excluded functionality
 
-The initial scope excludes:
+Beyond the exclusions in the design decisions above (hard deletion, movement edits, extra infrastructure), the scope leaves out:
 
 - **Authentication and authorization:** the assessment does not require user accounts or roles.
 - **Multiple warehouses or locations:** the model assumes one inventory location.
 - **Fractional quantities:** the initial model supports integer quantities for countable items.
-- **Hard deletion:** products are soft-deactivated to preserve history.
-- **Editing or deleting stock movements:** the ledger is append-only.
 - **Suppliers, purchase orders, and invoicing:** receiving stock does not require a purchasing workflow.
 - **Barcode scanning and external integrations:** outside the core prompt.
-- **Queues, caches, microservices, and complex client state:** unnecessary for this scale.
 - **Advanced analytics and forecasting:** basic stock and movement history are the priority.
-
-The `ADJUSTMENT` movement type is **not an intentional permanent exclusion**; its behavior is a known implementation gap and should be completed or explicitly rejected until supported.
 
 ## Known gaps
 
-The following items were identified in the current backend and should be addressed before calling the application complete:
+Items to address before calling the application complete:
 
 - `ADJUSTMENT` is currently treated like a receipt by the movement service. It should accept a non-zero signed delta, reject zero, and reject any adjustment that would make stock negative—or return `400` until the correct behavior is implemented.
 - Invalid pagination values such as `page=-1` or `size=0` currently result in `500` responses rather than `400` responses.
@@ -416,41 +344,24 @@ The following items were identified in the current backend and should be address
 - `%` and `_` in the `q` search parameter act as SQL `LIKE` wildcards. Decide whether that behavior is acceptable or should be escaped.
 - Seeded products have `created_at` set to the load time, while their first movement is dated about 60 days earlier (`createProduct` has no explicit-timestamp overload). Cosmetic, accepted for the demo data.
 - Swagger UI shows the `filter` parameter of `GET /api/products` as required, so the endpoint cannot be called without filters from Swagger (curl works). Probably fixed by `@ParameterObject` on the controller parameter.
-- The create-product form, the styling pass, edit product in the UI, and clean-checkout end-to-end verification are still needed.
+- The `q` search scans the product table (no index for partial matches). Exact SKU lookups use the unique index. Fine at this scale.
+- The UI shows only the latest 20 movements (no paging) and has no UI for `ADJUSTMENT` or deactivation (the API supports both), and there is no dashboard summary or balance chart.
 
-## Run the full application with Docker
+## Continuous integration and deployment
 
-The reviewer experience is:
+The workflow is `.github/workflows/ci.yml`. It runs on pushes and pull requests to `main` (documentation-only changes are ignored) and can also be started manually. Jobs:
 
-```bash
-docker compose up --build
-```
+| Job | What it does |
+|---|---|
+| `backend` | Java 25, `./mvnw -B test` (unit tests only, no database; integration tests are run locally with `./mvnw verify`) |
+| `frontend` | Node 22, `npm ci`, lint, tests and production build |
+| `docker` | Compose smoke test, after `backend` and `frontend`: `docker compose up --build -d --wait`, then checks `/actuator/health` and that `/api/products` returns seeded products through the Nginx proxy |
+| `publish` | On `main` only: builds the backend and frontend images and pushes them to GitHub Container Registry (`ghcr.io/lenapenha/torch-backend` and `torch-frontend`, tagged `latest` and with the commit SHA) |
+| `deploy` | On `main` only: copies `compose.prod.yaml` to the Compute Engine VM over SSH, writes `DB_PASSWORD` to a `.env` file there, pulls the images and restarts the stack |
 
-This starts three services (`make up` runs the same in the background). The frontend waits until the backend healthcheck passes, so the first load works without errors; allow about half a minute on the first start.
+`compose.prod.yaml` runs the published images instead of building them. It is tuned for the small `e2-micro` VM: capped JVM heap and a longer backend healthcheck start period, because a cold start with seeding takes a few minutes there.
 
-The Compose setup starts:
-
-- PostgreSQL 17 with a persistent volume and health check.
-- The Spring Boot backend using Java 25.
-- A React/Vite frontend built into static files and served by Nginx.
-- A reverse proxy from frontend `/api` requests to the backend.
-- An idempotent seed profile that loads sample products and movement history.
-
-The URLs are:
-
-- UI: `http://localhost:3000`
-- API: `http://localhost:8080`
-- Swagger UI: `http://localhost:8080/swagger-ui.html`
-- Health: `http://localhost:8080/actuator/health`
-
-To remove the database volume and start from an empty state:
-
-```bash
-docker compose down -v
-docker compose up --build
-```
-
-**Warning:** `docker compose down -v` deletes persisted database data.
+The deploy job needs a GitHub environment named `production` with the secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_APP_PATH` and `DB_PASSWORD`. The VM needs Docker, a user that can run it and that accepts the deploy SSH key, and an open firewall port 3000. The demo runs over plain HTTP.
 
 ## What I would improve with another week
 
@@ -458,84 +369,50 @@ If another week were available, I would prioritize the following:
 
 1. Finish and harden adjustment semantics, pagination validation, exception mapping, and optimistic-lock conflict handling.
 2. Broaden the PostgreSQL integration tests to every endpoint's error mapping (the create/receive/issue/history workflow, a rejected issue leaving stock unchanged, and a concurrency test are already covered).
-3. Implement and verify idempotent sample data with realistic movement history.
-4. Finish the React product list, product detail, stock-adjustment form, and movement history.
+3. Add paged movement history, a deactivate action and a stock-adjustment form to the UI.
+4. Make seeded `created_at` values consistent with the back-dated movements.
 5. Add the dashboard summary and a balance-over-time chart if the core workflow is stable.
 6. Improve test portability with Testcontainers so tests do not depend on a separately running Compose database.
-7. Add a small GitHub Actions workflow for the backend and frontend tests.
-8. Consider idempotency keys for movement requests so retried client requests cannot accidentally apply the same movement twice.
-9. Revisit target-count stocktake adjustments and multi-location inventory only if supported by expanded requirements.
-10. Add authentication and per-user audit information if the application needs multiple users.
-11. Polish the OpenAPI docs. Swagger UI works out of the box (springdoc scans the controllers), but I would add an `OpenAPI` bean with a title, version and description, and `@Operation`/`@ApiResponse` annotations so the `404` and `409` responses, which come from the exception handler and not the controller signatures, also appear in the generated documentation.
+7. Run the integration tests in CI only in specific flows (for example a separate nightly or manual workflow, not the deploy path), so they don't slow down deployment. They need a PostgreSQL service container or Testcontainers. Also add HTTPS in front of the deployed demo.
+8. Add authentication and per-user audit information if the application needs multiple users.
+9. Polish the OpenAPI docs. Swagger UI works out of the box (springdoc scans the controllers), but I would add an `OpenAPI` bean with a title, version and description, and `@Operation`/`@ApiResponse` annotations so the `404` and `409` responses, which come from the exception handler and not the controller signatures, also appear in the generated documentation.
 
 ## Time spent
 
-The work began on **Friday, 2026-10-16**. This is a running estimate and will be updated as implementation continues.
-
-| Day / activity | Approximate time |
-|---|---:|
-| Initial planning with ChatGPT before starting with Claude | 3 hours |
-| Friday, 2026-10-16 — implementation | 4 hours |
-| Saturday, 2026-10-17 — implementation and progress review | 11 hours |
-| Sunday, 2026-10-18 — work so far | 30 minutes |
-| **Total so far** | **18.5 hours** |
-
-TBD: These are approximate self-reported hours, not automated time tracking. The total is current as of Sunday morning and should be updated at the end of each work session and again before submission. The original target was a weekend project; the actual time spent so far is approximately **18.5 hours**.
+Approximately **31 hours** in total (self-reported, not automated time tracking), including about 3 hours of planning before implementation started.
 
 ## Use of AI tools
 
-AI tools were used for planning, implementation guidance, project tracking, and documentation. The developer remained responsible for implementing the application, reviewing suggestions, running commands and tests, and deciding which changes to accept.
+I used AI tools for planning, as a pair-programming assistant, for project tracking, and for documentation. I made the design decisions, reviewed every suggestion, ran the commands and tests, and decided which changes to accept.
 
 ### ChatGPT (OpenAI)
 
-Approximately **3 hours were spent planning with ChatGPT before implementation began with Claude**. This planning covered:
+I spent approximately **3 hours planning with ChatGPT before starting implementation with Claude**. The planning covered:
 
 - Comparing the assessment options and choosing Inventory Tracking.
 - Selecting Java + Spring Boot for the backend, React + Vite for the frontend, PostgreSQL for persistence, and Maven for the build.
-- Defining the initial scope and prioritizing a complete, tested application within the Friday-to-Sunday deadline.
+- Defining the initial scope and prioritizing a complete, tested application within the deadline.
 - Designing the `product` and `stock_movement` data model.
 - Discussing the append-only movement ledger, denormalized current balance, transactional updates, pessimistic locking, seed data, testing, Docker Compose, and README expectations.
-- Reviewing Claude's initial README and revising it to reflect the agreed decisions, current status, known gaps, and assessment requirements.
+- Reviewing Claude's initial README and revising it to reflect the decisions I agreed, the current status, known gaps, and assessment requirements.
 
 ### Claude Code (Anthropic)
 
-Claude Code was used as a planning and coding guide during implementation.
+I used Claude Code as an assistant for planning, implementation and review.
 
-- **Project requirements:** Claude created a `CLAUDE.md` file containing project requirements and working guidance.
-- **Progress tracking:** On Saturday, a `ROADMAP.md` file was requested to identify completed work, current progress, and the next implementation steps.
-- **Code assistance:** The original project notes report that some test and application code, including movement and pagination work, was generated or modified by Claude in the repository. The developer reviewed the changes and ran tests; the exact extent of AI-generated code should be kept accurate as the project progresses.
-- **Documentation:** Claude drafted the initial README from project history. The README was then reviewed and revised with ChatGPT.
+- **Project requirements:** Claude wrote a `CLAUDE.md` file that records the project requirements and the working method (build top-down, one endpoint at a time, with tests before moving on).
+- **Progress tracking:** I asked for a `ROADMAP.md` file to identify completed work, current progress, and the next implementation steps.
+- **Code assistance:** Some test and application code, including movement and pagination work, was generated or modified by Claude in the repository. I reviewed the changes and ran the tests.
+- **Documentation:** Claude drafted the initial README from the project history. I then reviewed and revised it with ChatGPT.
 
 ### Review and responsibility
 
-AI-generated suggestions and code were not treated as automatically correct. The developer is responsible for reviewing the implementation, making the design decisions, and verifying behavior with actual builds and tests.
+I did not treat AI-generated suggestions and code as automatically correct. I am responsible for reviewing the implementation, making the design decisions, and verifying behavior with actual builds and tests.
 
-Examples of implementation choices that differed from earlier suggestions:
+Examples of implementation choices where I differed from earlier suggestions:
 
-- Use GlobalHandlerExceptionResolver to handle exceptions and return ProblemDetail responses.
-- A generic `ResourceNotFoundException(String message)` was used instead of separate not-found exception classes for each entity.
-- Search by SKU, not just by ID.
-- Explicit repository methods such as `findLowStock()` and `searchLowStock(q)` were selected instead of JPA Specifications because the current filter set is small.
-- The implementation uses a separate movement ledger while keeping the current balance on the product, with the two updated transactionally.
-- Integration tests were split into one test per behavior (create product, receive, issue, current balance, history) with small setup helpers, instead of a single end-to-end flow test, so a failing test name identifies which step broke.
-- Integration tests (`*IT`, run by the failsafe plugin on `./mvnw verify`) are kept out of `./mvnw test`, so the default build and a CI pipeline stay fast and database-free. The two other database-dependent classes (`ProductRepositoryIT`, `TorchApplicationIT`) were renamed to follow the same convention.
-- Creation of a `Makefile` that centralizes the project commands (`make db`, `make down`, `make db/reset`, `make build`, `make run`, `make run/seed`, `make test/unit`, `make test/integration`, `make test/all`), so a reviewer does not need to remember Maven and Compose flags.
+- I used `GlobalExceptionHandler` to handle exceptions and return `ProblemDetail` responses.
+- I used a generic `ResourceNotFoundException(String message)` instead of separate not-found exception classes for each entity.
+- I added search by SKU, not just by ID.
+- I split the integration tests into one test per behavior (create product, receive, issue, current balance, history) with small setup helpers, instead of a single end-to-end flow test, so a failing test name identifies which step broke.
 - Frontend routing: Claude suggested installing `react-router-dom`. I asked whether `react-router` alone was enough, since an earlier project of mine used only the `react-router` v7 package (`Routes`, `Route`, `Navigate` imported from `"react-router"`, no `react-router-dom`). It is: in v7 `react-router` is the main package and `react-router-dom` is only a re-export kept for older code, so the project depends on `react-router` alone. A router package is still needed next to `react-dom` (which only renders components) because the product detail page needs a real URL (`/products/:id`) for back/forward navigation, refresh and bookmarking.
-
-## Final acceptance checklist
-
-Before submitting, verify each item against the actual repository:
-
-- [ ] A reviewer can follow the README from a clean checkout on macOS.
-- [ ] PostgreSQL starts and Flyway applies migrations.
-- [ ] Seed data loads without manual record creation.
-- [ ] The frontend and backend start using the documented commands.
-- [ ] Product creation, search, update, and deactivation work.
-- [ ] Receipts increase stock and create movement records.
-- [ ] Issues decrease stock and create movement records.
-- [ ] An invalid issue is rejected without changing the balance or ledger.
-- [ ] Movement history displays the recorded changes.
-- [ ] The ledger sum matches each product's current balance.
-- [ ] Automated tests pass.
-- [ ] `docker compose up --build` works from a clean state.
-- [ ] The time-spent and AI-use sections are accurate and complete.

@@ -50,8 +50,8 @@ Packages: `controller`, `dto`, `service`, `repository`, `model`, `enums`, `excep
 - [x] `backend` service in `docker-compose.yml` *(done 2026-10-18: `docker compose up --build` runs backend + seed against the compose DB; Helena confirmed it works; restart-persistence check passed: data survives `docker compose down`/`up`, seed skipped)* (env-driven `DB_URL`/`DB_USER`/`DB_PASSWORD`, `SPRING_PROFILES_ACTIVE=seed`, waits for the `db` healthcheck) so the image can be run and verified before the frontend exists
 
 ## P0.5 — Frontend
-*Decisions (2026-10-18): Tailwind + components-based structure (`api/`, `hooks/`, `components/`, `features/`, `pages/`); plain `fetch` wrapper, custom `useApi` hook, no state/data library; ADJUSTMENT left out of the movement form (backend gap, see Deferred); tests co-located (`X.test.tsx` beside `X.tsx`, Vitest + jsdom + RTL, setup in `src/test/setup.ts`); function first, one bounded styling pass. Scope cut at ~2-3h left (Sunday evening): F8 deferred, F7 = latest 20 only, F9 capped at ~30 min, only 3 frontend test topics (client errors, list render + low-stock badge, movement form server error).*
-*Execution order: F4 -> F6 -> F7 (done) -> Docker (P0.5b, done) -> F5 (done) -> F9 (done) -> final verification + README -> F8 only if time remains.*
+*Decisions (2026-10-18): Tailwind + components-based structure (`api/`, `hooks/`, `components/`, `features/`, `pages/`); plain `fetch` wrapper, custom `useApi` hook, no state/data library; ADJUSTMENT left out of the movement form (backend gap, see Deferred); tests co-located (`X.test.tsx` beside `X.tsx`, Vitest + jsdom + RTL, setup in `src/test/setup.ts`); function first, one bounded styling pass. Scope cut: F7 = latest 20 only, F9 limited to one bounded styling pass, only 3 frontend test topics (client errors, list render + low-stock badge, movement form server error).*
+*Execution order: F4 -> F6 -> F7 (done) -> Docker (P0.5b, done) -> F5 (done) -> F9 (done) -> F8 (done) -> final verification + README (done).*
 - [x] F1. Scaffold: Vite react-ts + Tailwind + React Router (`react-router` v7) + dev proxy `/api` -> :8080. *Done 2026-10-18.*
 - [x] F2. `api/types.ts`, `api/client.ts` (fetch wrapper -> `ApiError` with status, detail, field `errors`), `api/products.ts` (all six calls). *Done 2026-10-18; 2 tests.*
 - [x] F3a. `hooks/useApi.ts` (loading/error/data/reload, ignores stale responses). *Done 2026-10-18; 4 tests (6 frontend tests total).*
@@ -60,27 +60,45 @@ Packages: `controller`, `dto`, `service`, `repository`, `model`, `enums`, `excep
 - [x] F6. Product detail + receive/issue form (RECEIPT/ISSUE only; server error shown, stock and history reloaded from the server on success). *Test:* mocked 409 shows the message. *Status 2026-10-18: `ProductDetailPage` (fetch + fields + stock badge) and `features/MovementForm.tsx` (RECEIPT/ISSUE, server errors, `onSuccess` -> `reload`) implemented; `MovementForm.test.tsx` passes (mocked 409; mutation-checked), 9 frontend tests green. Manual check against the real backend passed (receive, issue, over-issue shows the server error and leaves stock unchanged). History reload is wired in F7.*
 - [x] F7. Movement history: latest 20, newest first, no Prev/Next (must render ADJUSTMENT rows too). *Done 2026-10-18: `features/MovementHistory.tsx` (presentational) + a second `useApi(() => listMovements(id, 0, 20))` on `ProductDetailPage`; the form's success handler reloads both the product and the history from the server. Verified in the browser against the real backend (new rows appear on receive/issue, none on a rejected issue). No dedicated test (scope cut).*
 - [x] F5. Create product form (no stock field; `description` is required by the backend; shows 409 duplicate SKU and per-field errors). *Done 2026-10-18: `features/ProductForm.tsx` (form + error display, `onSuccess(product)`), `pages/NewProductPage.tsx` (navigates to the new product's detail page), route `/products/new` before `/products/:id`, 'New product' link on the list page. Lint/type-check clean, 9 frontend tests green; verified by hand against the real backend.*
-- [x] F9. Styling pass with Tailwind, capped at ~30 min, shared components only. *Done 2026-10-18: page shell in `App.tsx` (header + centred `max-w-4xl` main), shared `components/Field.tsx` (label + input) and `components/Button.tsx` used by `ProductForm` and `MovementForm`, white-card tables with header row and dividers, green/red movement change, detail page info card, 'New product' link styled as a button. Lint/type-check clean, 9 frontend tests green.*
+- [x] F9. Styling pass with Tailwind, one bounded pass, shared components only. *Done 2026-10-18: page shell in `App.tsx` (header + centred `max-w-4xl` main), shared `components/Field.tsx` (label + input) and `components/Button.tsx` used by `ProductForm` and `MovementForm`, white-card tables with header row and dividers, green/red movement change, detail page info card, 'New product' link styled as a button. Lint/type-check clean, 9 frontend tests green.*
+- [x] F8. Edit product form (SKU read-only). *Done 2026-10-19: `ProductForm` takes an optional `product` (edit mode, calls `updateProduct` without the SKU), `pages/EditProductPage.tsx`, route `/products/:id/edit`, Edit link on the detail page. `ProductForm.test.tsx` added, 10 frontend tests green.*
 
 ## P0.5b — Remaining delivery
 - [x] Frontend Dockerfile (node build -> nginx; `nginx.conf` proxies `/api` to `backend:8080` with the path unchanged, SPA fallback `try_files`) + `frontend/.dockerignore`. *Do right after F7.*
 - [x] `frontend` service in `docker-compose.yml` (port 3000, `depends_on: backend`; full compose: db, backend, frontend); Makefile gets a new `make up` target (`run` unchanged, it is the local Maven loop). Root `.dockerignore` typo fixed (see below). Original: fix root `.dockerignore` typo `frontend/node_module`. *Done 2026-10-18: backend healthcheck enabled (interval 5s, retries 10, start_period 20s) and `frontend` waits for `service_healthy`; image builds; manual check of the whole flow at http://localhost:3000 passed (view, receive, issue, rejected issue, history, refresh on a detail URL, restart keeps data).*
-- [ ] README (run, reset, tests, API overview, design decisions, out of scope incl. edit-product gap, evolution)
+- [x] README (run, reset, tests, API overview, design decisions, out of scope, evolution). *Run/reset/test steps use the `make` targets.*
+
+## Delivery extras (beyond the P0 brief)
+- [x] CI/CD: `.github/workflows/ci.yml` runs backend unit tests, frontend lint/tests/build and a Compose smoke test; on `main` it publishes images to GitHub Container Registry and deploys them.
+- [x] Demo deployment on a Google Cloud Compute Engine `e2-micro` VM: `compose.prod.yaml` (published images, capped JVM heap, longer healthcheck start period) and `DEPLOY_SETUP.md`.
+- [x] Reorganised `Makefile`: targets grouped by purpose with `make help`; README steps use the `make` targets.
 
 ## P0.6 — Acceptance
-- [ ] `docker compose up --build` starts with seeded data; reviewer can create products, receive/issue stock, see an invalid issue rejected, and inspect history.
+Verify each item against the actual repository before submitting (moved here from the README).
+- [x] `make up` (`docker compose up --build`) starts with seeded data from a clean state; reviewer can create products, receive/issue stock, see an invalid issue rejected, and inspect history.
+- [x] PostgreSQL starts and Flyway applies migrations.
+- [x] Seed data loads without manual record creation.
+- [x] The frontend and backend start using the documented commands.
+- [x] Product creation, search, update, and deactivation work. *Deactivation is API-only; the UI has no button for it.*
+- [x] Receipts increase stock and create movement records.
+- [x] Issues decrease stock and create movement records.
+- [x] An invalid issue is rejected without changing the balance or ledger.
+- [x] Movement history displays the recorded changes.
+- [x] The ledger sum matches each product's current balance.
+- [x] Automated tests pass.
 
 ## P1
-- [ ] `GET /api/summary` dashboard, low-stock filter
+- [ ] `GET /api/summary` dashboard summary (the low-stock filter is done, see 8d)
 
 ## Optional (only after all P0)
-- [ ] Balance chart, global activity feed, GitHub Actions, Testcontainers
+- [ ] Balance chart, global activity feed, Testcontainers
+- [x] GitHub Actions (see Delivery extras)
 
 ## Not doing
 - Authentication
 
-## Deferred — outside the 12-hour budget (do only after everything above)
-Essential-only rule (Helena, 2026-10-17): anything that doesn't fit in the remaining ~12 hours goes here, in this order.
+## Deferred — not done (do only after everything above)
+Essential-only rule: anything that doesn't fit in the remaining time goes here, in this order.
 - [ ] **ADJUSTMENT movements** — until implemented, `MovementService` treats ADJUSTMENT as a positive delta (silently adds stock); consider rejecting it with 400 meanwhile. nonzero signed delta, wrong-sign/zero rejected, result below zero -> 409; adjust option in the frontend form.
 - [ ] **Optimistic-lock conflict on PUT -> 409** (`ObjectOptimisticLockingFailureException` handler; needs `version` in the update flow).
 - [ ] **6b. Exception handler hardening** — `GlobalExceptionHandler` extends `ResponseEntityExceptionHandler`; replace `handleValidation` with an override of `handleMethodArgumentNotValid` (delete the old `@ExceptionHandler` method, return via `handleExceptionInternal`). Until done, the catch-all turns malformed JSON / wrong method / unsupported media type into 500 instead of 400/405/415. *Test first:* `shouldReturnBadRequestWhenBodyIsMalformedJson`.
@@ -90,6 +108,7 @@ Essential-only rule (Helena, 2026-10-17): anything that doesn't fit in the remai
 - [ ] Seeded products' `created_at` is the load time, not 60 days ago (needs an explicit-`Instant` overload of `createProduct`).
 - [ ] `lowStock` follow-ups: `%`/`_` escaping in `q`; Specifications if a fourth filter appears.
 - [ ] **Swagger UI: `GET /api/products` filters** — Swagger UI shows `filter` as a required query param, and sending it empty fails with "For 'filter': Required field is not provided", so the endpoint can't be called without filters (curl works). Likely cause: `ProductController.listProducts(ProductFilter filter)` binds a plain record and springdoc documents it as one object param. Fix to try: annotate with `@ParameterObject` (springdoc) so `q`, `sku`, `lowStock` show as separate optional params. Also review the other endpoints in Swagger UI (movements `page`/`size`, request bodies, error responses).
-- [ ] **Edit product in the UI (was F8)** — `PUT /api/products/{id}` and `updateProduct` in `frontend/src/api/products.ts` already exist; only the form is missing (SKU read-only). Known gap vs the acceptance item "create and update a product": state it in the README. Do it first if time remains after final verification.
 - [ ] **Movement history Prev/Next paging in the UI** — backend paging works; the UI shows only the latest 20.
 - [ ] **Frontend tests beyond the three core topics** — debounced search calls the API with `q`, create-product form errors, hook/component edge cases.
+- [ ] **Index for the `q` search** — partial matches (`lower(...) like '%q%'`) scan the product table; exact SKU lookups already use the unique index. Fine at this scale.
+- [ ] **Integration tests in CI only in specific flows** — for example a nightly or manual workflow, not the deploy path, so deployments stay fast (needs a PostgreSQL service container or Testcontainers).
